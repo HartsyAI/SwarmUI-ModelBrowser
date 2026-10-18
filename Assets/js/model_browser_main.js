@@ -1,7 +1,7 @@
 (function () {
     'use strict';
 
-    const RECENTS_KEY = 'enhanced_downloader_recent_folders_v1';
+    const RECENTS_KEY = 'model_browser_recent_folders_v1';
     const MAX_RECENT_FOLDERS = 12;
     const DOM_READY_TIMEOUT_MS = 15000;
     const DOM_RETRY_INTERVAL_INITIAL_MS = 100;
@@ -511,10 +511,10 @@
                 mainInner.classList.add('model-browser-manual-inner');
             }
             const leftInfo = document.createElement('div');
-            leftInfo.className = 'model-browser-section-info ed-info-left';
+            leftInfo.className = 'model-browser-section-info model-browser-info-left';
             leftInfo.innerHTML = `
-<div class="ed-info-title translate">Manual Download</div>
-<ul class="ed-info-list">
+<div class="model-browser-info-title translate">Manual Download</div>
+<ul class="model-browser-info-list">
   <li><b class="translate">Purpose:</b> <span class="translate">Download a model from a direct URL into Swarm's model folders.</span></li>
   <li><b class="translate">Allowed files:</b> <code>.safetensors</code>, <code>.gguf</code>, <code>.ckpt</code>, <code>.pt</code>, <code>.sft</code>.</li>
   <li><b class="translate">Metadata:</b> <span class="translate">CivitAI, Hugging Face and Hartsy links load their details automatically.</span></li>
@@ -522,10 +522,10 @@
 </ul>`;
 
             const rightInfo = document.createElement('div');
-            rightInfo.className = 'model-browser-section-info ed-info-right';
+            rightInfo.className = 'model-browser-section-info model-browser-info-right';
             rightInfo.innerHTML = `
-<div class="ed-info-title translate">Model Browser</div>
-<ul class="ed-info-list">
+<div class="model-browser-info-title translate">Model Browser</div>
+<ul class="model-browser-info-list">
   <li><b class="translate">Sources:</b> <span class="translate">Search Hartsy, CivitAI or Hugging Face, each with its own filters.</span></li>
   <li><b class="translate">Recommended:</b> <span class="translate">The panel below tracks the models the SwarmUI docs recommend.</span></li>
   <li><b class="translate">Download:</b> <span class="translate">Pick a result to load its URL into the manual downloader on the left.</span></li>
@@ -549,13 +549,13 @@
             <div class="card-header">
                 <span class="translate">Downloads</span>
                 <span class="model-browser-downloads-controls">
-                    <label class="model-browser-toggle"><input type="checkbox" class="ed-show-completed" /> <span class="translate">Show completed</span></label>
+                    <label class="model-browser-toggle"><input type="checkbox" class="model-browser-show-completed-toggle" /> <span class="translate">Show completed</span></label>
                 </span>
             </div>
             <div class="card-body model-browser-downloads-body"></div>
         `;
         const body = card.querySelector('.model-browser-downloads-body');
-        const showCompleted = card.querySelector('.ed-show-completed');
+        const showCompleted = card.querySelector('.model-browser-show-completed-toggle');
 
         sidebar.classList.add('model-browser-downloads-zone');
         body.appendChild(sidebar);
@@ -596,7 +596,7 @@
         if (!window.modelDownloader || typeof modelDownloader.run !== 'function') {
             return false;
         }
-        if (modelDownloader.run._edTakeover) {
+        if (modelDownloader.run._modelBrowserTakeover) {
             return true;
         }
         const downloads = window.ModelBrowser && window.ModelBrowser.Downloads;
@@ -606,7 +606,7 @@
         const run = function () {
             downloads.startFromManualDownloader(modelDownloader);
         };
-        run._edTakeover = true;
+        run._modelBrowserTakeover = true;
         modelDownloader.run = run;
         return true;
     }

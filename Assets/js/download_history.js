@@ -1,31 +1,25 @@
-// TODO: Download History & Version Tracking
-// ============================================================================
-// This file is a placeholder for a future feature that will provide:
-//
-// 1. **Download History** — Track every model downloaded through the Model
-//    Downloader (name, URL, provider, timestamp, destination folder).
-//
-// 2. **Duplicate Detection** — Before downloading, check if the user already
-//    has the same model file (by filename, hash, or provider model ID) to
-//    prevent re-downloading the same model.
-//
-// 3. **Version Tracking** — For providers that support versioning (CivitAI),
-//    track which version the user downloaded. When browsing, indicate if a
-//    newer version is available for models the user already has.
-//
-// 4. **UI Integration** — Surface download history and version status in:
-//    - Model cards (badge: "Installed", "Update Available")
-//    - A dedicated history panel or tab
-//    - The manual downloader (warn before re-downloading)
-//
-// Key design decisions still needed:
-// - Storage backend: localStorage vs server-side (user generic data) vs
-//   scanning the actual Models/ directory for installed files
-// - How to match "same model" across providers (hash? filename? model ID?)
-// - How to efficiently check for updates without hammering provider APIs
-// - How version info maps across providers (CivitAI has versions, HF doesn't)
-// ============================================================================
-
+/**
+ * Download history and version tracking for the Model Browser.
+ *
+ * Planned, not yet implemented. This module currently only reserves the
+ * `window.ModelBrowser.DownloadHistory` namespace. Planned features:
+ *
+ * - Download history: record each model downloaded through the Model Browser
+ *   (name, source URL, provider, timestamp, destination folder).
+ * - Duplicate detection: warn before downloading a model the user already has,
+ *   matched by filename, hash, or provider model ID.
+ * - Version tracking: for providers with versions (CivitAI), show when a newer
+ *   version is available for a model the user already has.
+ * - UI integration: "Installed" and "Update Available" badges on model cards,
+ *   a history panel, and a warning in the manual downloader.
+ *
+ * Open design questions:
+ * - Storage: localStorage, server-side user generic data, or scanning the
+ *   Models directory for installed files.
+ * - Matching the same model across providers (hash, filename, or model ID).
+ * - Checking for updates without excessive provider API requests.
+ * - Mapping version information across providers (CivitAI has versions, Hugging Face does not).
+ */
 (function () {
     'use strict';
 

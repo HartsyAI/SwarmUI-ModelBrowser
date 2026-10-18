@@ -26,7 +26,7 @@ public static class DownloadManager
 
     /// <summary>The generic-data "dataname" this extension's download records are filed under in each user's
     /// LiteDB-backed store - the same mechanism <c>session.User.GetGenericData("civitai_api", "key")</c> uses.</summary>
-    private const string GenericDataName = "enhanced_downloader_download";
+    private const string GenericDataName = "model_browser_download";
 
     /// <summary>Completed downloads older than this are dropped from the database at startup so it doesn't grow forever.</summary>
     private static readonly long CompletedRetentionMs = TimeSpan.FromDays(7).Ticks / TimeSpan.TicksPerMillisecond;
@@ -165,27 +165,8 @@ public static class DownloadManager
     {
         string url = originalUrl.Split('#')[0];
         Dictionary<string, string> headers = [];
-        // TODO: SwarmUI PR pending. Once merged, delete the body below and use core's shared version instead:
-        // string authHint = Utilities.ApplyDownloadAPIKey(ref url, headers, session);
-        // return (url, headers, authHint);
-        if (url.StartsWith("https://civitai.com/"))
-        {
-            url = $"https://civitai.red/{url["https://civitai.com/".Length..]}";
-        }
-        string authHint = null;
-        if (url.StartsWith("https://civitai.red/"))
-        {
-            string key = session.User.GetGenericData("civitai_api", "key");
-            bool hasToken = url.Contains("?token=") || url.Contains("&token=");
-            if (!string.IsNullOrEmpty(key) && !hasToken)
-            {
-                url += (url.Contains('?') ? "&token=" : "?token=") + SanitizeKey(key);
-                hasToken = true;
-            }
-            authHint = hasToken ? "Civitai refused this download despite your API key. Make sure your Civitai API key in the User Settings page is valid, and that your Civitai account has access to this model (early access may require a purchase or subscription)."
-                : "Civitai refused this download, and you do not have a Civitai API key set. If this model is gated or early-access, set your Civitai API key in the User Settings page to download it.";
-        }
-        else if (url.StartsWith("https://hartsy.ai/"))
+        string authHint = Utilities.ApplyDownloadAPIKey(ref url, headers, session);
+        if (url.StartsWith("https://hartsy.ai/"))
         {
             string key = session.User.GetGenericData("hartsy_api", "key");
             if (!string.IsNullOrEmpty(key))
@@ -198,51 +179,7 @@ public static class DownloadManager
                 authHint = "Hartsy refused this download, and you do not have a Hartsy API key set. If this model requires a subscription, set your Hartsy API key in the User Settings page to download it.";
             }
         }
-        else if (url.StartsWith("https://huggingface.co/"))
-        {
-            string key = session.User.GetGenericData("huggingface_api", "key");
-            if (!string.IsNullOrEmpty(key))
-            {
-                headers["Authorization"] = $"Bearer {SanitizeKey(key)}";
-                authHint = "Hugging Face refused this download despite your API key. Make sure your Hugging Face API key in the User Settings page is valid, and that your account has been granted access to this model (gated models require accepting the terms on the model's page).";
-            }
-            else
-            {
-                authHint = "Hugging Face refused this download, and you do not have a Hugging Face API key set. If this model is gated or private, set your Hugging Face API key in the User Settings page to download it.";
-            }
-        }
         return (url, headers, authHint);
-    }
-
-    /// <summary>Extracts the server's stated reason from a failed HTTP response, if it provides one in a recognizable format. Returns null if none.</summary>
-    // TODO: SwarmUI PR pending. Once merged, delete this and call Utilities.GetResponseErrorReason instead.
-    private static async Task<string> GetResponseErrorReason(HttpResponseMessage response)
-    {
-        if (response.Headers.TryGetValues("x-error-message", out IEnumerable<string> errHeader))
-        {
-            string headerReason = errHeader.FirstOrDefault();
-            if (!string.IsNullOrWhiteSpace(headerReason))
-            {
-                return Utilities.CleanTrashTextForDebug(headerReason);
-            }
-        }
-        if (response.Content?.Headers.ContentType?.MediaType == "application/json")
-        {
-            try
-            {
-                JObject data = JObject.Parse(await response.Content.ReadAsStringAsync());
-                string reason = data.Value<string>("message") ?? data.Value<string>("error");
-                if (!string.IsNullOrWhiteSpace(reason))
-                {
-                    return Utilities.CleanTrashTextForDebug(reason);
-                }
-            }
-            catch (Exception ex)
-            {
-                Logs.Verbose($"[ModelBrowser] Could not parse an error reason from failed download response body: {ex.ReadableString()}");
-            }
-        }
-        return null;
     }
 
     /// <summary>Starts a brand new download. Returns `{ error }` for any validation failure (bad URL, refused model
@@ -420,8 +357,7 @@ public static class DownloadManager
                 string message = $"Failed to download: got response code {(int)response.StatusCode} {response.StatusCode}";
                 if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
                 {
-                    // TODO: SwarmUI PR pending. Once merged, switch to Utilities.GetResponseErrorReason(response).
-                    string reason = await GetResponseErrorReason(response);
+                    string reason = await Utilities.GetResponseErrorReason(response);
                     if (reason is not null)
                     {
                         message += $" (\"{reason}\")";

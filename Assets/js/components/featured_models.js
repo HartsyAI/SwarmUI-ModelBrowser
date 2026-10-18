@@ -4,10 +4,10 @@
     window.ModelBrowser = window.ModelBrowser || {};
     window.ModelBrowser.Components = window.ModelBrowser.Components || {};
 
-    const COLLAPSE_KEY = 'enhanced_downloader_featured_collapsed';
-    const EXPAND_IMAGE_KEY = 'enhanced_downloader_featured_expand_image';
-    const EXPAND_VIDEO_KEY = 'enhanced_downloader_featured_expand_video';
-    const EXPAND_AUDIO_KEY = 'enhanced_downloader_featured_expand_audio';
+    const COLLAPSE_KEY = 'model_browser_featured_collapsed';
+    const EXPAND_IMAGE_KEY = 'model_browser_featured_expand_image';
+    const EXPAND_VIDEO_KEY = 'model_browser_featured_expand_video';
+    const EXPAND_AUDIO_KEY = 'model_browser_featured_expand_audio';
 
     function createModelCard(model) {
         const utils = window.ModelBrowser && window.ModelBrowser.Utils;
@@ -16,7 +16,7 @@
         const card = document.createElement('div');
         card.className = 'model-block model-block-hoverable model-browser-featured-card';
         if (model.isRecommended) {
-            card.classList.add('ed-featured-recommended');
+            card.classList.add('model-browser-featured-recommended');
         }
 
         const badgeHtml = model.isRecommended
@@ -40,7 +40,7 @@
 
         if (downloads.length > 0) {
             const actions = document.createElement('div');
-            actions.className = 'ed-model-actions';
+            actions.className = 'model-browser-model-actions';
 
             const select = document.createElement('select');
             select.className = 'auto-dropdown model-browser-featured-select';
@@ -101,7 +101,7 @@
 
         for (let i = 0; i < models.length; i++) {
             const card = createModelCard(models[i]);
-            if (i > 0) card.classList.add('ed-featured-collapsible');
+            if (i > 0) card.classList.add('model-browser-featured-collapsible');
             list.appendChild(card);
         }
 
@@ -112,7 +112,7 @@
 
             const isExpanded = localStorage.getItem(expandKey) === 'true';
             const updateToggle = (expanded) => {
-                const collapsible = list.querySelectorAll('.ed-featured-collapsible');
+                const collapsible = list.querySelectorAll('.model-browser-featured-collapsible');
                 for (const el of collapsible) {
                     el.style.display = expanded ? '' : 'none';
                 }
@@ -155,7 +155,7 @@
                 <div class="card-header">
                     <span class="translate">Recommended Models</span>
                     <span class="model-browser-featured-toggle-wrap">
-                        <button type="button" class="basic-button model-browser-smallbtn ed-featured-toggle">Hide</button>
+                        <button type="button" class="basic-button model-browser-smallbtn model-browser-featured-toggle">Hide</button>
                     </span>
                 </div>
                 <div class="card-body model-browser-featured-body-wrap">
@@ -171,7 +171,7 @@
             `;
 
             const bodyWrap = card.querySelector('.model-browser-featured-body-wrap');
-            const toggleBtn = card.querySelector('.ed-featured-toggle');
+            const toggleBtn = card.querySelector('.model-browser-featured-toggle');
             const loadingEl = card.querySelector('.model-browser-featured-loading');
             const columnsEl = card.querySelector('.model-browser-featured-columns');
 

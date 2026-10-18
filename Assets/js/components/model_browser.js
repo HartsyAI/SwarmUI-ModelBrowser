@@ -68,13 +68,13 @@
                 <div class="model-browser-browser-controls">
                     <div class="model-browser-browser-row">
                         <span class="translate">Source</span>:
-                        <select class="auto-dropdown ed-provider" autocomplete="off"></select>
-                        <input type="text" class="auto-text ed-query" placeholder="Search..." autocomplete="off" />
-                        <button type="button" class="basic-button model-browser-smallbtn ed-search"><span class="translate">Search</span></button>
+                        <select class="auto-dropdown model-browser-provider" autocomplete="off"></select>
+                        <input type="text" class="auto-text model-browser-query" placeholder="Search..." autocomplete="off" />
+                        <button type="button" class="basic-button model-browser-smallbtn model-browser-search"><span class="translate">Search</span></button>
                     </div>
                     <div class="model-browser-browser-row">
                         <span class="translate">Filters</span>:
-                        <select class="auto-dropdown ed-type" autocomplete="off">
+                        <select class="auto-dropdown model-browser-type" autocomplete="off">
                             <option value="All" class="translate">All</option>
                             <option value="Checkpoint">Checkpoint</option>
                             <option value="LORA" selected>LoRA</option>
@@ -84,7 +84,7 @@
                             <option value="ControlNet">ControlNet</option>
                             <option value="VAE">VAE</option>
                         </select>
-                        <select class="auto-dropdown ed-basemodel" autocomplete="off">
+                        <select class="auto-dropdown model-browser-basemodel" autocomplete="off">
                             <option value="All" class="translate" selected>All</option>
                             <option value="SD 1.5">SD 1.5</option>
                             <option value="SDXL 1.0">SDXL 1.0</option>
@@ -92,30 +92,30 @@
                             <option value="Illustrious">Illustrious</option>
                             <option value="Flux.1 D">Flux.1 D</option>
                         </select>
-                        <select class="auto-dropdown ed-sort" autocomplete="off">
+                        <select class="auto-dropdown model-browser-sort" autocomplete="off">
                             <option value="Most Downloaded" selected>Most Downloaded</option>
                             <option value="Newest">Newest</option>
                             <option value="Highest Rated">Highest Rated</option>
                         </select>
-                        <select class="auto-dropdown ed-period" autocomplete="off" style="display:none">
+                        <select class="auto-dropdown model-browser-period" autocomplete="off" style="display:none">
                             <option value="AllTime" selected>All Time</option>
                         </select>
-                        <label class="model-browser-toggle"><input type="checkbox" class="ed-nsfw" /> <span class="translate">NSFW</span></label>
+                        <label class="model-browser-toggle"><input type="checkbox" class="model-browser-nsfw" /> <span class="translate">NSFW</span></label>
                     </div>
-                    <div class="model-browser-browser-row ed-civitai-row" style="display:none">
+                    <div class="model-browser-browser-row model-browser-civitai-row" style="display:none">
                         <span class="translate">Tag</span>:
-                        <input type="text" class="auto-text ed-tag" list="ed-tag-suggestions" placeholder="Type a tag..." autocomplete="off" />
-                        <datalist id="ed-tag-suggestions"></datalist>
-                        <label class="model-browser-toggle"><input type="checkbox" class="ed-gen-only" /> <span class="translate">Generation-Ready</span></label>
-                        <label class="model-browser-toggle"><input type="checkbox" class="ed-from-platform" /> <span class="translate">Trained on Civitai</span></label>
+                        <input type="text" class="auto-text model-browser-tag" list="model-browser-tag-suggestions" placeholder="Type a tag..." autocomplete="off" />
+                        <datalist id="model-browser-tag-suggestions"></datalist>
+                        <label class="model-browser-toggle"><input type="checkbox" class="model-browser-gen-only" /> <span class="translate">Generation-Ready</span></label>
+                        <label class="model-browser-toggle"><input type="checkbox" class="model-browser-from-platform" /> <span class="translate">Trained on Civitai</span></label>
                     </div>
                 </div>
                 <div class="model-browser-browser-status"></div>
                 <div class="model-browser-browser-results browser-content-container"></div>
                 <div class="model-browser-browser-pager">
-                    <button type="button" class="basic-button model-browser-smallbtn ed-prev"><span class="translate">Prev</span></button>
-                    <span class="ed-pageinfo"></span>
-                    <button type="button" class="basic-button model-browser-smallbtn ed-next"><span class="translate">Next</span></button>
+                    <button type="button" class="basic-button model-browser-smallbtn model-browser-prev"><span class="translate">Prev</span></button>
+                    <span class="model-browser-pageinfo"></span>
+                    <button type="button" class="basic-button model-browser-smallbtn model-browser-next"><span class="translate">Next</span></button>
                 </div>
             </div>
         `;
@@ -154,24 +154,24 @@
             if (!providers.length) return false;
 
             const card = createBrowserCard();
-            const providerSelect = card.querySelector('.ed-provider');
-            const query = card.querySelector('.ed-query');
-            const searchBtn = card.querySelector('.ed-search');
-            const typeFilter = card.querySelector('.ed-type');
-            const baseModelFilter = card.querySelector('.ed-basemodel');
-            const sortFilter = card.querySelector('.ed-sort');
-            const periodFilter = card.querySelector('.ed-period');
-            const nsfwToggle = card.querySelector('.ed-nsfw');
-            const civitaiRow = card.querySelector('.ed-civitai-row');
-            const tagInput = card.querySelector('.ed-tag');
-            const tagSuggestions = card.querySelector('#ed-tag-suggestions');
-            const genOnlyToggle = card.querySelector('.ed-gen-only');
-            const fromPlatformToggle = card.querySelector('.ed-from-platform');
+            const providerSelect = card.querySelector('.model-browser-provider');
+            const query = card.querySelector('.model-browser-query');
+            const searchBtn = card.querySelector('.model-browser-search');
+            const typeFilter = card.querySelector('.model-browser-type');
+            const baseModelFilter = card.querySelector('.model-browser-basemodel');
+            const sortFilter = card.querySelector('.model-browser-sort');
+            const periodFilter = card.querySelector('.model-browser-period');
+            const nsfwToggle = card.querySelector('.model-browser-nsfw');
+            const civitaiRow = card.querySelector('.model-browser-civitai-row');
+            const tagInput = card.querySelector('.model-browser-tag');
+            const tagSuggestions = card.querySelector('#model-browser-tag-suggestions');
+            const genOnlyToggle = card.querySelector('.model-browser-gen-only');
+            const fromPlatformToggle = card.querySelector('.model-browser-from-platform');
             const statusEl = card.querySelector('.model-browser-browser-status');
             const resultsEl = card.querySelector('.model-browser-browser-results');
-            const prevBtn = card.querySelector('.ed-prev');
-            const nextBtn = card.querySelector('.ed-next');
-            const pageInfo = card.querySelector('.ed-pageinfo');
+            const prevBtn = card.querySelector('.model-browser-prev');
+            const nextBtn = card.querySelector('.model-browser-next');
+            const pageInfo = card.querySelector('.model-browser-pageinfo');
 
             for (const p of providers) {
                 const opt = document.createElement('option');

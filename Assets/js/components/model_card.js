@@ -20,7 +20,7 @@
             if (!formatHolder) return;
             formatHolder.innerHTML = '';
             const toggle = document.createElement('span');
-            toggle.className = 'basic-button model-browser-smallbtn ed-model-format-toggle';
+            toggle.className = 'basic-button model-browser-smallbtn model-browser-model-format-toggle';
             toggle.textContent = translate('More formats');
             toggle.onclick = async () => {
                 if (toggle.dataset.loading === 'true') return;
@@ -34,7 +34,7 @@
                         return;
                     }
                     const formatSelect = document.createElement('select');
-                    formatSelect.className = 'auto-dropdown ed-variant-select';
+                    formatSelect.className = 'auto-dropdown model-browser-variant-select';
                     formatSelect.autocomplete = 'off';
                     for (const f of formats) {
                         const optEl = document.createElement('option');
@@ -72,7 +72,7 @@
 
         if (primaryOptions.length > 1) {
             primarySelect = document.createElement('select');
-            primarySelect.className = 'auto-dropdown ed-variant-select';
+            primarySelect.className = 'auto-dropdown model-browser-variant-select';
             primarySelect.autocomplete = 'off';
             for (const opt of primaryOptions) {
                 const optEl = document.createElement('option');
@@ -109,7 +109,7 @@
 
         if (typeof provider.getSecondaryOptionsLazy === 'function' && (primaryOptions.length > 0 || item.modelVersionId)) {
             formatHolder = document.createElement('span');
-            formatHolder.className = 'ed-model-format-holder';
+            formatHolder.className = 'model-browser-model-format-holder';
             variantRow.appendChild(formatHolder);
             resetFormatControl();
         }
@@ -154,16 +154,16 @@
             : (downloadOptions.length > 0 && downloadOptions[0] ? `${downloadOptions[0].downloadUrl}` : '');
         const openUrl = item.openUrl ? `${item.openUrl}` : '';
         const descText = stripHtmlToText(item.description || '');
-        const descHtml = descText ? `<div class="ed-model-desc">${escapeHtml(descText)}</div>` : '';
+        const descHtml = descText ? `<div class="model-browser-model-desc">${escapeHtml(descText)}</div>` : '';
         const badges = (provider && typeof provider.getCardBadges === 'function') ? (provider.getCardBadges(item) || []) : [];
         const badgesHtml = badges.length > 0
-            ? `<div class="ed-model-badges">${badges.map(b => `<span class="ed-model-badge ed-model-badge-${escapeHtml(b.kind || 'info')}">${escapeHtml(b.label || '')}</span>`).join('')}</div>`
+            ? `<div class="model-browser-model-badges">${badges.map(b => `<span class="model-browser-model-badge model-browser-model-badge-${escapeHtml(b.kind || 'info')}">${escapeHtml(b.label || '')}</span>`).join('')}</div>`
             : '';
 
         const actionsHtml = `
-            <div class="ed-model-actions">
-                <button type="button" class="basic-button model-browser-smallbtn ed-model-download"><span class="translate">Download</span></button>
-                ${openUrl ? `<a class="basic-button model-browser-smallbtn ed-model-open" href="${openUrl}" target="_blank" rel="noreferrer"><span class="translate">Open</span></a>` : ''}
+            <div class="model-browser-model-actions">
+                <button type="button" class="basic-button model-browser-smallbtn model-browser-model-download"><span class="translate">Download</span></button>
+                ${openUrl ? `<a class="basic-button model-browser-smallbtn model-browser-model-open" href="${openUrl}" target="_blank" rel="noreferrer"><span class="translate">Open</span></a>` : ''}
             </div>
         `;
 
@@ -173,7 +173,7 @@
             <br>${escapeHtml(item.type || '')}${baseStr ? ` | ${baseStr}` : ''}${creatorStr ? ` | ${creatorStr}` : ''}${downloadsStr ? ` | ${downloadsStr} ${translate('downloads')}` : ''}
             ${badgesHtml}
             ${descHtml}
-            <div class="ed-model-variant-row"></div>
+            <div class="model-browser-model-variant-row"></div>
             ${actionsHtml}
         `;
         div.appendChild(textBlock);
@@ -187,12 +187,12 @@
             modelVersionId: item.modelVersionId
         };
 
-        const openLink = textBlock.querySelector('.ed-model-open');
+        const openLink = textBlock.querySelector('.model-browser-model-open');
         const applySelectionToDom = () => {
             if (openLink) openLink.href = selection.openUrl || '';
         };
 
-        const variantRow = textBlock.querySelector('.ed-model-variant-row');
+        const variantRow = textBlock.querySelector('.model-browser-model-variant-row');
         if (variantRow && provider) {
             buildVariantRow(variantRow, item, provider, selection, applySelectionToDom);
         }
@@ -208,7 +208,7 @@
             }
         });
 
-        const downloadBtn = textBlock.querySelector('.ed-model-download');
+        const downloadBtn = textBlock.querySelector('.model-browser-model-download');
         if (downloadBtn) {
             downloadBtn.onclick = () => {
                 const merged = Object.assign({}, item, selection);
