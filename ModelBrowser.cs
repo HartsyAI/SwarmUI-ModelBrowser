@@ -10,11 +10,11 @@ namespace Hartsy.Extensions;
 /// <summary>Main extension class that registers scripts, styles, API endpoints, and permissions for the Model Browser.</summary>
 public class ModelBrowser : Extension
 {
-    public static readonly PermInfo PermModelBrowser = Permissions.Register(new("enhanced_downloader", "Model Browser", "Allows access to the Model Browser APIs.", PermissionDefault.POWERUSERS, Permissions.GroupControl, PermSafetyLevel.UNTESTED));
+    public static readonly PermInfo PermModelBrowser = Permissions.Register(new("model_browser", "Model Browser", "Allows access to the Model Browser APIs.", PermissionDefault.POWERUSERS, Permissions.GroupControl, PermSafetyLevel.UNTESTED));
 
-    public static readonly PermInfo PermModelBrowserBrowse = Permissions.Register(new("enhanced_downloader_browse", "Model Browser: Browse", "Allows browsing/searching models via the Model Browser.", PermissionDefault.POWERUSERS, Permissions.GroupControl, PermSafetyLevel.UNTESTED));
+    public static readonly PermInfo PermModelBrowserBrowse = Permissions.Register(new("model_browser_browse", "Model Browser: Browse", "Allows browsing/searching models via the Model Browser.", PermissionDefault.POWERUSERS, Permissions.GroupControl, PermSafetyLevel.UNTESTED));
 
-    public static readonly PermInfo PermModelBrowserNSFW = Permissions.Register(new("enhanced_downloader_nsfw", "Model Browser: NSFW", "Allows NSFW results in the Model Browser.", PermissionDefault.POWERUSERS, Permissions.GroupControl, PermSafetyLevel.UNTESTED));
+    public static readonly PermInfo PermModelBrowserNSFW = Permissions.Register(new("model_browser_nsfw", "Model Browser: NSFW", "Allows NSFW results in the Model Browser.", PermissionDefault.POWERUSERS, Permissions.GroupControl, PermSafetyLevel.UNTESTED));
 
     /// <inheritdoc/>
     public override void OnPreInit()

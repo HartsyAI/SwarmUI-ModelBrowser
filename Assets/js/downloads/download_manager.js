@@ -115,13 +115,13 @@
 
     function buildCard(rec) {
         const root = document.createElement('div');
-        root.className = 'ed-download-card';
+        root.className = 'model-browser-download-card';
         root.innerHTML = `
             <div class="card">
                 <div class="card-header"></div>
-                <div class="ed-download-progress"><div class="ed-download-progress-bar"></div></div>
-                <div class="ed-download-status"></div>
-                <div class="ed-download-actions"></div>
+                <div class="model-browser-download-progress"><div class="model-browser-download-progress-bar"></div></div>
+                <div class="model-browser-download-status"></div>
+                <div class="model-browser-download-actions"></div>
             </div>
         `;
         const els = {
@@ -129,10 +129,10 @@
             card: root.querySelector('.card'),
             header: root.querySelector('.card-header'),
             img: null,
-            progressWrap: root.querySelector('.ed-download-progress'),
-            bar: root.querySelector('.ed-download-progress-bar'),
-            status: root.querySelector('.ed-download-status'),
-            actions: root.querySelector('.ed-download-actions')
+            progressWrap: root.querySelector('.model-browser-download-progress'),
+            bar: root.querySelector('.model-browser-download-progress-bar'),
+            status: root.querySelector('.model-browser-download-status'),
+            actions: root.querySelector('.model-browser-download-actions')
         };
         cardEls.set(rec.id, els);
         zone.insertBefore(root, zone.firstChild);
@@ -152,12 +152,12 @@
         const known = rec.totalBytes > 0;
         const pct = rec.state === 'completed' ? 100 : (known ? Math.min(100, (rec.downloadedBytes / rec.totalBytes) * 100) : 0);
         els.bar.style.width = `${pct}%`;
-        els.progressWrap.classList.toggle('ed-progress-indeterminate', rec.state === 'downloading' && !known);
+        els.progressWrap.classList.toggle('model-browser-progress-indeterminate', rec.state === 'downloading' && !known);
         els.status.innerHTML = statusHtml(rec);
-        // State classes go on `root` (the `.ed-download-card`), not the inner `.card` - the CSS selectors for
-        // per-state coloring and the "Show completed" toggle both key off `.ed-download-card.ed-state-*`.
-        els.root.classList.remove('ed-state-downloading', 'ed-state-paused', 'ed-state-errored', 'ed-state-completed');
-        els.root.classList.add(`ed-state-${rec.state}`);
+        // State classes go on `root` (the `.model-browser-download-card`), not the inner `.card` - the CSS selectors for
+        // per-state coloring and the "Show completed" toggle both key off `.model-browser-download-card.model-browser-state-*`.
+        els.root.classList.remove('model-browser-state-downloading', 'model-browser-state-paused', 'model-browser-state-errored', 'model-browser-state-completed');
+        els.root.classList.add(`model-browser-state-${rec.state}`);
         renderActions(els.actions, rec);
     }
 
