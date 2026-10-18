@@ -181,8 +181,6 @@ public static class DownloadManager
         }
         return (url, headers, authHint);
     }
-        return null;
-    }
 
     /// <summary>Starts a brand new download. Returns `{ error }` for any validation failure (bad URL, refused model
     /// name, unknown type, path already occupied by a finished model or another in-flight download).</summary>
