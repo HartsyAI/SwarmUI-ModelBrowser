@@ -48,7 +48,7 @@ public static class FeaturedModels
 
             M("MOSS Image", "image",
                 "Extremely capable 5B model. SFT is quality-tuned, Base is less trained and more variable. Supports JSON bounding boxes in captions.",
-                "DiT", "OpenMOSS", "5B", false,
+                "DiT", "OpenMOSS", "5B", true,
                 D("SFT int8 (Recommended)", "https://huggingface.co/Comfy-Org/MOSS-Image/blob/main/diffusion_models/moss_image_sft_int8_convrot.safetensors"),
                 D("SFT BF16", "https://huggingface.co/Comfy-Org/MOSS-Image/blob/main/diffusion_models/moss_image_sft_bf16.safetensors"),
                 D("Base int8", "https://huggingface.co/Comfy-Org/MOSS-Image/blob/main/diffusion_models/moss_image_base_int8_convrot.safetensors"),
@@ -57,29 +57,13 @@ public static class FeaturedModels
 
             M("Flux 3 Image", "image",
                 "Direct partial upgrade to Flux 2 Klein. Very fast, but initial community opinion on quality is low compared to leading models. Edits with up to 10 reference images.",
-                "DiT", "Black Forest Labs", "5.6B", false,
+                "DiT", "Black Forest Labs", "5.6B", true,
                 D("Klein SD int8 (Recommended)", "https://huggingface.co/black-forest-labs/flux-3-image-klein-comfy/blob/main/diffusion_models/flux3-image-klein-int8-convrot.safetensors"),
                 D("Klein SD BF16", "https://huggingface.co/black-forest-labs/flux-3-image-klein-comfy/blob/main/diffusion_models/flux3-image-klein-bf16.safetensors"),
                 D("Klein SD NVFP4", "https://huggingface.co/black-forest-labs/flux-3-image-klein-comfy/blob/main/diffusion_models/flux3-image-klein-nvfp4.safetensors"),
                 D("Klein Base int8", "https://huggingface.co/black-forest-labs/flux-3-image-klein-comfy/blob/main/diffusion_models/flux3-image-klein-base-int8-convrot.safetensors"),
                 D("Klein Base BF16", "https://huggingface.co/black-forest-labs/flux-3-image-klein-comfy/blob/main/diffusion_models/flux3-image-klein-base-bf16.safetensors"),
                 D("Klein Base NVFP4", "https://huggingface.co/black-forest-labs/flux-3-image-klein-comfy/blob/main/diffusion_models/flux3-image-klein-base-nvfp4.safetensors")
-            ),
-
-            M("Ming Image", "image",
-                "Built for infographic generation and likes JSON-structured prompts. Supports transparency (save as PNG, not JPG). Design variant only; the Layer variant is not supported yet.",
-                "DiT", "InclusionAI", "6B", false,
-                D("Design int8", "https://huggingface.co/Comfy-Org/Ming-Image/blob/main/diffusion_models/ming_image_0.1_design_int8_convrot.safetensors"),
-                D("Design BF16", "https://huggingface.co/Comfy-Org/Ming-Image/blob/main/diffusion_models/ming_image_0.1_design_bf16.safetensors")
-            ),
-
-            M("Qwen Image 2.1", "image",
-                "Modern, creative, and slow. First proper model with alpha support (generates transparent images, save as PNG). Good at editing and referencing with up to 10 prompt images. Turbo versions use 8 steps.",
-                "MMDiT", "Alibaba-Qwen", "7B", true,
-                D("int8", "https://huggingface.co/Comfy-Org/Qwen-Image-2.1/blob/main/diffusion_models/qwen_image_2.1_int8_convrot.safetensors"),
-                D("BF16", "https://huggingface.co/Comfy-Org/Qwen-Image-2.1/blob/main/diffusion_models/qwen_image_2.1_bf16.safetensors"),
-                D("Turbo int8", "https://huggingface.co/Comfy-Org/Qwen-Image-2.1/blob/main/diffusion_models/qwen_image_2.1_turbo_int8_convrot.safetensors"),
-                D("Turbo BF16", "https://huggingface.co/Comfy-Org/Qwen-Image-2.1/blob/main/diffusion_models/qwen_image_2.1_turbo_bf16.safetensors")
             ),
 
             M("Krea 2", "image",
@@ -94,6 +78,15 @@ public static class FeaturedModels
                 D("Raw-to-Turbo LoRA", "https://huggingface.co/Comfy-Org/Krea-2/blob/main/loras/krea2_turbo_lora_rank_64_bf16.safetensors")
             ),
 
+            M("Qwen Image 2.1", "image",
+                "Modern, creative, and slow. First proper model with alpha support (generates transparent images, save as PNG). Good at editing and referencing with up to 10 prompt images. Turbo versions use 8 steps.",
+                "MMDiT", "Alibaba-Qwen", "7B", true,
+                D("int8", "https://huggingface.co/Comfy-Org/Qwen-Image-2.1/blob/main/diffusion_models/qwen_image_2.1_int8_convrot.safetensors"),
+                D("BF16", "https://huggingface.co/Comfy-Org/Qwen-Image-2.1/blob/main/diffusion_models/qwen_image_2.1_bf16.safetensors"),
+                D("Turbo int8", "https://huggingface.co/Comfy-Org/Qwen-Image-2.1/blob/main/diffusion_models/qwen_image_2.1_turbo_int8_convrot.safetensors"),
+                D("Turbo BF16", "https://huggingface.co/Comfy-Org/Qwen-Image-2.1/blob/main/diffusion_models/qwen_image_2.1_turbo_bf16.safetensors")
+            ),
+
             M("Z-Image", "image",
                 "Best for photoreal. Lightweight 6B with a fast Turbo variant.",
                 "S3-DiT", "Tongyi MAI (Alibaba)", "6B", true,
@@ -104,9 +97,16 @@ public static class FeaturedModels
                 D("Base BF16", "https://huggingface.co/Comfy-Org/z_image/blob/main/split_files/diffusion_models/z_image_bf16.safetensors")
             ),
 
+            M("Ming Image", "image",
+                "Built for infographic generation and likes JSON-structured prompts. Supports transparency (save as PNG, not JPG). Design variant only; the Layer variant is not supported yet.",
+                "DiT", "InclusionAI", "6B", false,
+                D("Design int8", "https://huggingface.co/Comfy-Org/Ming-Image/blob/main/diffusion_models/ming_image_0.1_design_int8_convrot.safetensors"),
+                D("Design BF16", "https://huggingface.co/Comfy-Org/Ming-Image/blob/main/diffusion_models/ming_image_0.1_design_bf16.safetensors")
+            ),
+
             M("Flux.2", "image",
                 "MMDiT family from Black Forest Labs. Klein is a smaller, faster variant great for editing/art variety (4B is often smarter than 9B); Dev is the smartest and largest at 32B but needs 64GB+ RAM.",
-                "MMDiT", "Black Forest Labs", "4B, 9B, 32B", true,
+                "MMDiT", "Black Forest Labs", "4B, 9B, 32B", false,
                 D("Klein 4B Distilled", "https://huggingface.co/Comfy-Org/flux2-klein-4B/blob/main/split_files/diffusion_models/flux-2-klein-4b.safetensors"),
                 D("Klein 4B Base", "https://huggingface.co/Comfy-Org/flux2-klein-4B/blob/main/split_files/diffusion_models/flux-2-klein-base-4b.safetensors"),
                 D("Klein 4B GGUF Q4", "https://huggingface.co/unsloth/FLUX.2-klein-4B-GGUF/blob/main/flux-2-klein-4b-Q4_K_M.gguf"),
