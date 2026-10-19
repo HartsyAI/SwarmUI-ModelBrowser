@@ -23,8 +23,9 @@
         const sel = selection || item;
 
         const popoverId = `model-browser-model-${renderId}`;
-        // scrollable_tall caps height, or a long menu measures taller than the viewport and renders off-screen.
-        const menuDiv = createDiv(`popover_${popoverId}`, 'sui-popover sui_popover_model sui_popover_scrollable_tall');
+        // model-browser-model-popover caps height so a long menu stays on screen. Core's sui_popover_scrollable_tall
+        // is not used because its min-width: 100% stretches a fixed-position popover across the whole viewport.
+        const menuDiv = createDiv(`popover_${popoverId}`, 'sui-popover sui_popover_model model-browser-model-popover');
 
         const btnDownload = document.createElement('div');
         btnDownload.className = 'sui_popover_model_button';

@@ -821,3 +821,8 @@
 .model-browser-model-badge-info {
     background: var(--background-soft);
 }
+
+.model-browser-model-popover {
+    max-height: calc(max(15rem, 45vh));
+    overflow-y: auto;
+}
