@@ -116,18 +116,22 @@
             return this.loraArchitectures(options.architectures) || 'All';
         },
 
+        /**
+         * Loads the version groups for a Hartsy model family. Rejects when the lookup fails, so callers can tell a
+         * failed request apart from a family that has no other versions.
+         * @param {string} modelId - The model ID of any row in the family.
+         * @returns {Promise<Array>} The family's version groups, or an empty array when there is nothing to look up.
+         */
         getVersionGroups: async function (modelId) {
             const utils = window.ModelBrowser && window.ModelBrowser.Utils;
             if (!modelId || !utils || !utils.genericRequestAsync) return [];
-            try {
-                const resp = await utils.genericRequestAsync('ModelBrowserHartsyVersions', {
-                    modelId: `${modelId}`
-                });
-                return (resp && resp.success && Array.isArray(resp.groups)) ? resp.groups : [];
-            } catch (e) {
-                console.warn('[ModelBrowser] Failed to load Hartsy versions:', e);
-                return [];
+            const resp = await utils.genericRequestAsync('ModelBrowserHartsyVersions', {
+                modelId: `${modelId}`
+            });
+            if (!resp || !resp.success || !Array.isArray(resp.groups)) {
+                throw new Error((resp && resp.error) || 'Failed to load versions');
             }
+            return resp.groups;
         },
 
         findGroupFor: function (groups, modelId) {
@@ -156,7 +160,13 @@
 
         /** Precision picker for the card: the same weights in other encodings, fetched lazily. */
         getSecondaryOptionsLazy: async function (item) {
-            const groups = await this.getVersionGroups(item.modelId);
+            let groups;
+            try {
+                groups = await this.getVersionGroups(item.modelId);
+            } catch (e) {
+                console.warn('[ModelBrowser] Failed to load Hartsy versions for the precision picker:', e);
+                return null;
+            }
             const group = this.findGroupFor(groups, item.modelId);
             if (!group) return null;
             const entries = [group.primary, ...(Array.isArray(group.variants) ? group.variants : [])].filter(v => v && v.id);
@@ -239,8 +249,10 @@
                         };
                         menuDiv.appendChild(verBtn);
                     }
-                } catch {
+                } catch (e) {
+                    console.warn('[ModelBrowser] Failed to load Hartsy versions:', e);
                     versionsBtn.innerText = translate('Failed to load versions');
+                    versionsBtn.style.pointerEvents = '';
                 }
             };
             menuDiv.appendChild(versionsBtn);
