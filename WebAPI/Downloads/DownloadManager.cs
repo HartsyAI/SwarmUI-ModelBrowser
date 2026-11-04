@@ -39,6 +39,58 @@ public static class DownloadManager
 
     private const int ReadBufferSize = 256 * 1024;
 
+    /// <summary>Redirects one download may take before it is refused.</summary>
+    private const int MaxDownloadRedirects = 10;
+
+    /// <summary>Headers that identify the caller. They travel only to the origin they were set for.</summary>
+    private static readonly HashSet<string> CredentialHeaders = new(StringComparer.OrdinalIgnoreCase) { "X-API-Key", "Authorization" };
+
+    /// <summary>Client for the transfer itself. It does not follow redirects on its own: HttpClient would copy every request
+    /// header to the host it redirects to, which sends a Hartsy key to the signed storage URL Hartsy answers with.</summary>
+    private static readonly HttpClient RedirectClient = CreateRedirectClient();
+
+    private static HttpClient CreateRedirectClient()
+    {
+        HttpClient client = new(new SocketsHttpHandler() { AllowAutoRedirect = false, PooledConnectionLifetime = TimeSpan.FromMinutes(10), MaxConnectionsPerServer = 1000 });
+        client.DefaultRequestHeaders.UserAgent.ParseAdd($"SwarmUI/{Utilities.Version}");
+        client.Timeout = TimeSpan.FromMinutes(120);
+        return client;
+    }
+
+    /// <summary>Sends a download request and follows its redirects itself. A redirect to another origin drops the credential
+    /// headers, as HttpClient drops Authorization. Range and If-Range are kept, so a resumed download still asks for the bytes
+    /// it is missing.</summary>
+    private static async Task<HttpResponseMessage> SendFollowingRedirectsAsync(HttpRequestMessage request, CancellationToken token)
+    {
+        for (int hop = 0; ; hop++)
+        {
+            HttpResponseMessage response = await RedirectClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token);
+            bool isRedirect = response.StatusCode is HttpStatusCode.MovedPermanently or HttpStatusCode.Found or HttpStatusCode.SeeOther
+                or HttpStatusCode.TemporaryRedirect or HttpStatusCode.PermanentRedirect;
+            if (!isRedirect || response.Headers.Location is null)
+            {
+                return response;
+            }
+            if (hop == MaxDownloadRedirects)
+            {
+                response.Dispose();
+                throw new SwarmReadableErrorException("Failed to download: too many redirects.");
+            }
+            Uri next = new(request.RequestUri, response.Headers.Location);
+            response.Dispose();
+            bool sameOrigin = next.Scheme == request.RequestUri.Scheme && next.Authority == request.RequestUri.Authority;
+            HttpRequestMessage nextRequest = new(HttpMethod.Get, next);
+            foreach ((string key, IEnumerable<string> values) in request.Headers)
+            {
+                if (sameOrigin || !CredentialHeaders.Contains(key))
+                {
+                    nextRequest.Headers.TryAddWithoutValidation(key, values);
+                }
+            }
+            request = nextRequest;
+        }
+    }
+
     /// <summary>Query-string-safe token characters, mirroring core's own sanitization for the same API keys.</summary>
     private static string SanitizeKey(string key) => ModelsAPI.TokenTextLimiter.TrimToMatches(key);
 
@@ -209,7 +261,9 @@ public static class DownloadManager
         {
             return new JObject() { ["error"] = $"A download to '{outPath}' already exists - resume or clear it from the Downloads panel first." };
         }
-        if (!string.IsNullOrEmpty(image) && !string.IsNullOrWhiteSpace(metadata))
+        // SwarmUI shows a sidecar thumbnail only as a data URI and ignores a plain URL, so only a data URI is written. A URL
+        // would also replace the thumbnail the sidecar already carries.
+        if (image is not null && image.StartsWith("data:image/") && !string.IsNullOrWhiteSpace(metadata))
         {
             try
             {
@@ -351,7 +405,7 @@ public static class DownloadManager
                     request.Headers.TryAddWithoutValidation("If-Range", ifRange);
                 }
             }
-            using HttpResponseMessage response = await Utilities.DownloaderWebClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, linked.Token);
+            using HttpResponseMessage response = await SendFollowingRedirectsAsync(request, linked.Token);
             if (response.StatusCode != HttpStatusCode.OK && response.StatusCode != HttpStatusCode.PartialContent)
             {
                 string message = $"Failed to download: got response code {(int)response.StatusCode} {response.StatusCode}";

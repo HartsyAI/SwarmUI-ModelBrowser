@@ -18,10 +18,25 @@ public class HartsyProvider : IModelBrowserProvider
     public bool SupportsFilters => true;
     public bool SupportsNsfw => false;
     public const string BaseUrl = "https://hartsy.ai/api/external";
+    /// <summary>The site itself. Its download routes (the model bytes and the metadata sidecar) sit beside the API, not under it.</summary>
+    public const string SiteOrigin = "https://hartsy.ai";
     public static readonly ProviderCache SearchCache = new(TimeSpan.FromSeconds(60));
     public static readonly ProviderCache FilterCache = new(TimeSpan.FromMinutes(5));
     public static readonly SemaphoreSlim RateLimiter = new(3, 3);
     public static readonly HashSet<string> AllowedSorts = ["created_at", "updated_at", "title", "downloads"];
+
+    /// <summary>The SwarmUI model folder a Hartsy model kind is saved to. A checkpoint of any kind has no folder of its own and
+    /// is a Stable-Diffusion file.</summary>
+    public static string SwarmTypeFor(string modelKind) => modelKind switch
+    {
+        "lora" or "dora" => "LoRA",
+        "controlnet" or "control-lora" => "ControlNet",
+        "embedding" => "Embedding",
+        "vae" => "VAE",
+        "text-encoder" => "Clip",
+        "clip-vision" => "ClipVision",
+        _ => "Stable-Diffusion"
+    };
 
     /// <summary>Maps one half of a model's access record (<c>generate</c> or <c>download</c>) to camelCase. The API sends
     /// <c>{ mode, tier }</c> with <c>tier</c> null unless <c>mode</c> is <c>tier</c>; a missing record maps to empty strings.</summary>
@@ -365,8 +380,16 @@ public class HartsyProvider : IModelBrowserProvider
         {
             return new JObject() { ["success"] = false, ["error"] = "Model ID is required." };
         }
+        // Details come first and outside the rate limiter, since they take a slot of their own. They supply the model kind
+        // that picks the SwarmUI folder.
+        JObject details = await GetModelDetailsAsync(session, modelId);
+        if (details.Value<bool?>("success") != true)
+        {
+            return details;
+        }
         string apiKey = GetApiKey(session);
         string url = $"{BaseUrl}/models/{Uri.EscapeDataString(modelId)}/download";
+        string sidecarUrl = $"{SiteOrigin}/download/{Uri.EscapeDataString(modelId)}/metadata";
         await RateLimiter.WaitAsync();
         try
         {
@@ -404,6 +427,16 @@ public class HartsyProvider : IModelBrowserProvider
                     ["infoHash"] = torrentObj.Value<string>("info_hash") ?? ""
                 };
             }
+            // The sidecar is the model's own metadata as Hartsy stores it, with its thumbnail embedded. Writing it beside the
+            // weights is what lets SwarmUI show the model with its real details, so a download without it is refused here.
+            (HttpStatusCode sidecarStatus, string sidecar) = await GetWithKeyFallbackAsync(sidecarUrl, apiKey);
+            if ((int)sidecarStatus is < 200 or >= 300)
+            {
+                Logs.Warning($"[ModelBrowser] Hartsy metadata sidecar failed: {(int)sidecarStatus}");
+                return new JObject() { ["success"] = false, ["error"] = $"Hartsy has no metadata for this model (error {(int)sidecarStatus})." };
+            }
+            result["metadata"] = sidecar;
+            result["swarmType"] = SwarmTypeFor(details.Value<string>("modelKind"));
             return result;
         }
         catch (Exception ex)

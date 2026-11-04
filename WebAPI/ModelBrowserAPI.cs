@@ -215,8 +215,8 @@ public static class ModelBrowserAPI
         return Task.FromResult(FeaturedModels.GetFeatured());
     }
 
-    /// <summary>Fetches download info for a Hartsy model, recording analytics and providing hash/torrent data.</summary>
-    [API.APIDescription("Fetches download info for a Hartsy model.", "\"success\": true, \"downloadUrl\": \"...\", \"hashSha256\": \"...\", \"torrent\": { ... }")]
+    /// <summary>Fetches download info for a Hartsy model, recording analytics. Includes the SwarmUI folder type and the metadata sidecar to save beside the file.</summary>
+    [API.APIDescription("Fetches download info for a Hartsy model.", "\"success\": true, \"downloadUrl\": \"...\", \"hashSha256\": \"...\", \"swarmType\": \"LoRA\", \"metadata\": \"{...}\", \"torrent\": { ... }")]
     public static async Task<JObject> ModelBrowserHartsyDownload(Session session,
         [API.APIParameter("The Hartsy model ID.")] string modelId)
     {

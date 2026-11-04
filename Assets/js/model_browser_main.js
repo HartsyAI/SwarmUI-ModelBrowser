@@ -376,15 +376,15 @@
                 modelDownloader.name.value = cleanName;
                 modelDownloader.name.style.borderColor = '';
 
-                // Hartsy has no CivitAI-style "type" field; LoRA vs checkpoint is inferred from the architecture
-                // string (e.g. "qwen-image/lora"), per the same convention used in providers/hartsy.js.
-                if (modelDownloader.type && hasDetails && details.architecture) {
-                    modelDownloader.type.value = `${details.architecture}`.toLowerCase().endsWith('/lora') ? 'LoRA' : 'Stable-Diffusion';
+                // The API names the SwarmUI folder for the model's kind (LoRA, VAE, ControlNet, ...); a checkpoint is the default.
+                if (modelDownloader.type && resp && resp.swarmType) {
+                    modelDownloader.type.value = resp.swarmType;
                 }
 
+                let infoHtml = '';
                 if (hasDetails) {
                     const descText = stripHtmlToText(details.description || '');
-                    const infoHtml = `
+                    infoHtml = `
                         <b>${translate('Hartsy Metadata')}</b>
                         <br><b>${translate('Model')}</b>: ${escapeHtml(title)}
                         ${details.architecture ? `<br><b>${translate('Architecture')}</b>: ${escapeHtml(details.architecture)}` : ''}
@@ -392,14 +392,12 @@
                         ${Array.isArray(details.tags) && details.tags.length ? `<br><b>${translate('Tags')}</b>: ${escapeHtml(details.tags.join(', '))}` : ''}
                         ${descText ? `<br><b>${translate('Description')}</b>: ${escapeHtml(descText)}` : ''}
                     `;
-                    const rawMeta = JSON.stringify({
-                        'modelspec.title': title,
-                        'modelspec.description': `From https://hartsy.ai/Home?type=models&id=${modelId}\n${descText || ''}`,
-                        'modelspec.architecture': details.architecture || '',
-                    }, null, 2);
-                    if (typeof utils.setManualDownloaderInfo === 'function') {
-                        utils.setManualDownloaderInfo(infoHtml, rawMeta, details.image || '');
-                    }
+                }
+                // The sidecar is Hartsy's own metadata for the file, embedded thumbnail included. A download saves it beside
+                // the weights, so it is what SwarmUI shows. The preview picture is only for the panel and is never saved.
+                if (typeof utils.setManualDownloaderInfo === 'function') {
+                    const sidecar = resp && resp.success ? resp.metadata || '' : '';
+                    utils.setManualDownloaderInfo(infoHtml, sidecar, hasDetails ? details.image || '' : '');
                 }
 
                 if (!resp || !resp.success || !resp.downloadUrl) {
