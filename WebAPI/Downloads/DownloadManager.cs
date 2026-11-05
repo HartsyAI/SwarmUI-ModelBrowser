@@ -257,7 +257,8 @@ public static class DownloadManager
         {
             return new JObject() { ["error"] = $"A model already exists at '{outPath}' - rename it or choose a different destination." };
         }
-        if (Records.Values.Any(r => r.UserId == session.User.UserID && string.Equals(r.OutPath, outPath, StringComparison.OrdinalIgnoreCase)))
+        // A finished download whose file is gone from disk must not block a new one. A finished file still on disk is refused above.
+        if (Records.Values.Any(r => r.UserId == session.User.UserID && r.State != DownloadState.Completed && string.Equals(r.OutPath, outPath, StringComparison.OrdinalIgnoreCase)))
         {
             return new JObject() { ["error"] = $"A download to '{outPath}' already exists - resume or clear it from the Downloads panel first." };
         }
