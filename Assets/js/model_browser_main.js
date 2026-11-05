@@ -421,10 +421,24 @@
         modelDownloader.urlInput = wrapped;
     }
 
+    // SwarmUI's Model Type list stops at ControlNet, but Hartsy text encoders and CLIP vision models are saved to the Clip and
+    // ClipVision folders, which the backend already has. Without these options the type is set to nothing and the download is refused.
+    function ensureComponentModelTypes() {
+        if (!modelDownloader.type) {
+            return;
+        }
+        for (const [value, label] of [['Clip', 'Text Encoder (Clip)'], ['ClipVision', 'CLIP Vision']]) {
+            if (![...modelDownloader.type.options].some(option => option.value === value)) {
+                modelDownloader.type.add(new Option(label, value));
+            }
+        }
+    }
+
     function tryEnhanceUrlUI() {
         if (!window.modelDownloader || !modelDownloader.url) {
             return false;
         }
+        ensureComponentModelTypes();
         wrapUrlInputForHartsy();
         const url = modelDownloader.url;
         if (url.dataset.modelBrowserDone || url.nextElementSibling?.classList?.contains('model-browser-url-actions')) {
