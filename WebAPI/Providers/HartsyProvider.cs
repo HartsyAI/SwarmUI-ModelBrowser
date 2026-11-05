@@ -171,7 +171,7 @@ public class HartsyProvider : IModelBrowserProvider
                     // A row is already one version in one precision, so it is its own version id.
                     ["modelVersionId"] = modelId,
                     ["name"] = name,
-                    ["type"] = "Checkpoint",
+                    ["type"] = item.Value<string>("model_kind_label") ?? "",
                     ["description"] = description,
                     ["creator"] = creator,
                     ["downloads"] = downloads,

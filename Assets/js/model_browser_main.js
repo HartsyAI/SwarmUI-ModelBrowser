@@ -8,18 +8,28 @@
     const DOM_RETRY_INTERVAL_MAX_MS = 1000;
     let downloadRoots = null;
 
+    // A fresh page's first call can be refused before SwarmUI has a session for it, and the retry then succeeds. Without retrying,
+    // the roots stay unknown for the life of the page and the destination preview is built from nothing.
+    const DOWNLOAD_ROOTS_ATTEMPTS = 5;
+
     async function loadDownloadRoots() {
         const utils = window.ModelBrowser && window.ModelBrowser.Utils;
         if (downloadRoots || !utils || typeof utils.genericRequestAsync !== 'function') {
             return;
         }
-        try {
-            const resp = await utils.genericRequestAsync('ModelBrowserGetDownloadRoots', {});
-            if (resp && resp.success && resp.roots) {
-                downloadRoots = resp.roots;
+        for (let attempt = 1; attempt <= DOWNLOAD_ROOTS_ATTEMPTS && !downloadRoots; attempt++) {
+            try {
+                const resp = await utils.genericRequestAsync('ModelBrowserGetDownloadRoots', {});
+                if (resp && resp.success && resp.roots) {
+                    downloadRoots = resp.roots;
+                    return;
+                }
+                console.warn(`[ModelBrowser] Download roots not loaded (attempt ${attempt}):`, resp && resp.error);
             }
-        }
-        catch {
+            catch (e) {
+                console.warn(`[ModelBrowser] Download roots request failed (attempt ${attempt}):`, e);
+            }
+            await new Promise(r => setTimeout(r, 500 * attempt));
         }
     }
 
