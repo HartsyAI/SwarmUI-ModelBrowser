@@ -367,9 +367,11 @@ public static class DownloadManager
         {
             return new JObject() { ["error"] = "Cancel the download before clearing it." };
         }
+        // A completed download's partial file was already moved to OutPath, so its PartPath may now belong to a newer
+        // download to the same destination. Only an unfinished download owns its partial file.
         try
         {
-            if (File.Exists(rec.PartPath))
+            if (rec.State != DownloadState.Completed && File.Exists(rec.PartPath))
             {
                 File.Delete(rec.PartPath);
             }
