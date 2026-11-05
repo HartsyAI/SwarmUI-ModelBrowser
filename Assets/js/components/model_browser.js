@@ -293,8 +293,14 @@
                 applyTranslations(resultsEl);
             };
 
+            // A request made while a search is running is kept and run when it finishes, not dropped. A filter change starts a search
+            // of its own, and dropping the Search click that followed it lost the query the user had just submitted.
+            let queuedSearch = null;
             const runSearch = async (setPage = null) => {
-                if (state.inflight) return;
+                if (state.inflight) {
+                    queuedSearch = { setPage };
+                    return;
+                }
                 const prov = getProvider(state.providerId);
                 if (!prov) return;
 
@@ -412,6 +418,11 @@
                 }
                 state.inflight = false;
                 updatePager();
+                if (queuedSearch) {
+                    const next = queuedSearch;
+                    queuedSearch = null;
+                    runSearch(next.setPage);
+                }
             };
 
             providerSelect.onchange = async () => {

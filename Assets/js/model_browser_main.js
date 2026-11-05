@@ -8,18 +8,28 @@
     const DOM_RETRY_INTERVAL_MAX_MS = 1000;
     let downloadRoots = null;
 
+    // A fresh page's first call can be refused before SwarmUI has a session for it, and the retry then succeeds. Without retrying,
+    // the roots stay unknown for the life of the page and the destination preview is built from nothing.
+    const DOWNLOAD_ROOTS_ATTEMPTS = 5;
+
     async function loadDownloadRoots() {
         const utils = window.ModelBrowser && window.ModelBrowser.Utils;
         if (downloadRoots || !utils || typeof utils.genericRequestAsync !== 'function') {
             return;
         }
-        try {
-            const resp = await utils.genericRequestAsync('ModelBrowserGetDownloadRoots', {});
-            if (resp && resp.success && resp.roots) {
-                downloadRoots = resp.roots;
+        for (let attempt = 1; attempt <= DOWNLOAD_ROOTS_ATTEMPTS && !downloadRoots; attempt++) {
+            try {
+                const resp = await utils.genericRequestAsync('ModelBrowserGetDownloadRoots', {});
+                if (resp && resp.success && resp.roots) {
+                    downloadRoots = resp.roots;
+                    return;
+                }
+                console.warn(`[ModelBrowser] Download roots not loaded (attempt ${attempt}):`, resp && resp.error);
             }
-        }
-        catch {
+            catch (e) {
+                console.warn(`[ModelBrowser] Download roots request failed (attempt ${attempt}):`, e);
+            }
+            await new Promise(r => setTimeout(r, 500 * attempt));
         }
     }
 
@@ -376,15 +386,15 @@
                 modelDownloader.name.value = cleanName;
                 modelDownloader.name.style.borderColor = '';
 
-                // Hartsy has no CivitAI-style "type" field; LoRA vs checkpoint is inferred from the architecture
-                // string (e.g. "qwen-image/lora"), per the same convention used in providers/hartsy.js.
-                if (modelDownloader.type && hasDetails && details.architecture) {
-                    modelDownloader.type.value = `${details.architecture}`.toLowerCase().endsWith('/lora') ? 'LoRA' : 'Stable-Diffusion';
+                // The API names the SwarmUI folder for the model's kind (LoRA, VAE, ControlNet, ...); a checkpoint is the default.
+                if (modelDownloader.type && resp && resp.swarmType) {
+                    modelDownloader.type.value = resp.swarmType;
                 }
 
+                let infoHtml = '';
                 if (hasDetails) {
                     const descText = stripHtmlToText(details.description || '');
-                    const infoHtml = `
+                    infoHtml = `
                         <b>${translate('Hartsy Metadata')}</b>
                         <br><b>${translate('Model')}</b>: ${escapeHtml(title)}
                         ${details.architecture ? `<br><b>${translate('Architecture')}</b>: ${escapeHtml(details.architecture)}` : ''}
@@ -392,14 +402,12 @@
                         ${Array.isArray(details.tags) && details.tags.length ? `<br><b>${translate('Tags')}</b>: ${escapeHtml(details.tags.join(', '))}` : ''}
                         ${descText ? `<br><b>${translate('Description')}</b>: ${escapeHtml(descText)}` : ''}
                     `;
-                    const rawMeta = JSON.stringify({
-                        'modelspec.title': title,
-                        'modelspec.description': `From https://hartsy.ai/Home?type=models&id=${modelId}\n${descText || ''}`,
-                        'modelspec.architecture': details.architecture || '',
-                    }, null, 2);
-                    if (typeof utils.setManualDownloaderInfo === 'function') {
-                        utils.setManualDownloaderInfo(infoHtml, rawMeta, details.image || '');
-                    }
+                }
+                // The sidecar is Hartsy's own metadata for the file, embedded thumbnail included. A download saves it beside
+                // the weights, so it is what SwarmUI shows. The preview picture is only for the panel and is never saved.
+                if (typeof utils.setManualDownloaderInfo === 'function') {
+                    const sidecar = resp && resp.success ? resp.metadata || '' : '';
+                    utils.setManualDownloaderInfo(infoHtml, sidecar, hasDetails ? details.image || '' : '');
                 }
 
                 if (!resp || !resp.success || !resp.downloadUrl) {
@@ -423,10 +431,24 @@
         modelDownloader.urlInput = wrapped;
     }
 
+    // SwarmUI's Model Type list stops at ControlNet, but Hartsy text encoders and CLIP vision models are saved to the Clip and
+    // ClipVision folders, which the backend already has. Without these options the type is set to nothing and the download is refused.
+    function ensureComponentModelTypes() {
+        if (!modelDownloader.type) {
+            return;
+        }
+        for (const [value, label] of [['Clip', 'Text Encoder (Clip)'], ['ClipVision', 'CLIP Vision']]) {
+            if (![...modelDownloader.type.options].some(option => option.value === value)) {
+                modelDownloader.type.add(new Option(label, value));
+            }
+        }
+    }
+
     function tryEnhanceUrlUI() {
         if (!window.modelDownloader || !modelDownloader.url) {
             return false;
         }
+        ensureComponentModelTypes();
         wrapUrlInputForHartsy();
         const url = modelDownloader.url;
         if (url.dataset.modelBrowserDone || url.nextElementSibling?.classList?.contains('model-browser-url-actions')) {

@@ -254,7 +254,7 @@ All require `model_browser_browse`.
 | `ModelBrowserHartsySearch` | `query`, `page`, `limit`, `architecture`, `sort`, `tags` | `{mode:"page", page, totalPages, totalItems, hasMore, items}` |
 | `ModelBrowserHartsyFilterOptions` | none | `{architectures, tags, uploadSources, generateTiers}` |
 | `ModelBrowserHartsyModelDetails` | `modelId` (required) | `{title, description, architecture, author, image, downloads, tags, ...}` (cached, no analytics recorded) |
-| `ModelBrowserHartsyDownload` | `modelId` (required) | `{downloadUrl, fileName, fileSize, hashSha256, torrent?}` (records a download analytics event on Hartsy's side, not cached) |
+| `ModelBrowserHartsyDownload` | `modelId` (required) | `{downloadUrl, fileName, fileSize, hashSha256, swarmType, metadata, torrent?}`. `swarmType` is the SwarmUI folder (`LoRA`, `VAE`, `ControlNet`, `Embedding`, `Clip`, `ClipVision`, or `Stable-Diffusion`) and `metadata` is Hartsy's `.swarm.json` sidecar, saved beside the file. Records a download analytics event on Hartsy's side, not cached |
 | `ModelBrowserHartsyVersions` | `modelId` (required) | `{familyId, title, groups:[{key, label, precisions, primary, variants}]}`. One group per version; `primary` is the file the site generates with and `variants` are those same weights in other precisions |
 
 All require `model_browser_browse`.
