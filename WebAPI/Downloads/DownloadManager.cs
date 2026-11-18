@@ -42,6 +42,9 @@ public static class DownloadManager
     /// <summary>Redirects one download may take before it is refused.</summary>
     private const int MaxDownloadRedirects = 10;
 
+    /// <summary>The Hartsy site. Its downloads take the user's Hartsy key, and only from this origin.</summary>
+    private const string HartsyOrigin = "https://hartsy.ai/";
+
     /// <summary>Headers that identify the caller. They travel only to the origin they were set for.</summary>
     private static readonly HashSet<string> CredentialHeaders = new(StringComparer.OrdinalIgnoreCase) { "X-API-Key", "Authorization" };
 
@@ -218,13 +221,13 @@ public static class DownloadManager
         string url = originalUrl.Split('#')[0];
         Dictionary<string, string> headers = [];
         string authHint = Utilities.ApplyDownloadAPIKey(ref url, headers, session);
-        if (url.StartsWith("https://hartsy.ai/"))
+        if (url.StartsWith(HartsyOrigin))
         {
             string key = session.User.GetGenericData("hartsy_api", "key");
             if (!string.IsNullOrEmpty(key))
             {
                 headers["X-API-Key"] = SanitizeKey(key);
-                authHint = "Hartsy refused this download despite your API key. Make sure your Hartsy API key in the User Settings page is valid, and that your account's subscription tier covers this model.";
+                authHint = "Hartsy refused this download with your API key. Make sure the Hartsy API key in the User Settings page is valid and holds the models:download permission, and that your subscription tier covers this model.";
             }
             else
             {
@@ -385,6 +388,44 @@ public static class DownloadManager
         return new JObject() { ["success"] = true };
     }
 
+    /// <summary>Sends the transfer request. Hartsy refuses a key that lacks models:download even for a free model, and a free
+    /// model needs no key, so a Hartsy request the key gets refused is sent once more without it. A gated model is refused
+    /// again, and the failure says why.</summary>
+    private static async Task<HttpResponseMessage> SendDownloadAsync(string requestUrl, Dictionary<string, string> headers, DownloadRecord rec, bool isResume, CancellationToken token)
+    {
+        HttpResponseMessage response = await SendFollowingRedirectsAsync(BuildDownloadRequest(requestUrl, headers, rec, isResume), token);
+        bool keyRefused = response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden;
+        if (!keyRefused || !requestUrl.StartsWith(HartsyOrigin) || !headers.ContainsKey("X-API-Key"))
+        {
+            return response;
+        }
+        response.Dispose();
+        Dictionary<string, string> anonymous = new(headers);
+        anonymous.Remove("X-API-Key");
+        return await SendFollowingRedirectsAsync(BuildDownloadRequest(requestUrl, anonymous, rec, isResume), token);
+    }
+
+    /// <summary>Builds one transfer request. A resumed download asks only for the bytes it is missing, with If-Range so a
+    /// changed file restarts instead of splicing.</summary>
+    private static HttpRequestMessage BuildDownloadRequest(string requestUrl, Dictionary<string, string> headers, DownloadRecord rec, bool isResume)
+    {
+        HttpRequestMessage request = new(HttpMethod.Get, requestUrl);
+        foreach ((string key, string value) in headers)
+        {
+            request.Headers.TryAddWithoutValidation(key, value);
+        }
+        if (isResume)
+        {
+            request.Headers.Range = new RangeHeaderValue(rec.DownloadedBytes, null);
+            string ifRange = rec.ETag ?? rec.LastModified;
+            if (!string.IsNullOrEmpty(ifRange))
+            {
+                request.Headers.TryAddWithoutValidation("If-Range", ifRange);
+            }
+        }
+        return request;
+    }
+
     /// <summary>The actual transfer. Resumable: if `rec.DownloadedBytes` is already positive and the part file
     /// exists, requests a Range continuation with If-Range so a changed remote file restarts instead of splicing
     /// mismatched bytes together. Runs detached from any specific request/connection - only `rec.Canceller` stops it.</summary>
@@ -394,21 +435,7 @@ public static class DownloadManager
         try
         {
             bool isResume = rec.DownloadedBytes > 0 && File.Exists(rec.PartPath);
-            HttpRequestMessage request = new(HttpMethod.Get, requestUrl);
-            foreach ((string key, string value) in headers)
-            {
-                request.Headers.TryAddWithoutValidation(key, value);
-            }
-            if (isResume)
-            {
-                request.Headers.Range = new RangeHeaderValue(rec.DownloadedBytes, null);
-                string ifRange = rec.ETag ?? rec.LastModified;
-                if (!string.IsNullOrEmpty(ifRange))
-                {
-                    request.Headers.TryAddWithoutValidation("If-Range", ifRange);
-                }
-            }
-            using HttpResponseMessage response = await SendFollowingRedirectsAsync(request, linked.Token);
+            using HttpResponseMessage response = await SendDownloadAsync(requestUrl, headers, rec, isResume, linked.Token);
             if (response.StatusCode != HttpStatusCode.OK && response.StatusCode != HttpStatusCode.PartialContent)
             {
                 string message = $"Failed to download: got response code {(int)response.StatusCode} {response.StatusCode}";

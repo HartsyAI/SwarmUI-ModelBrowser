@@ -176,6 +176,8 @@ Every provider works anonymously. Adding a key raises rate limits and/or unlocks
    - **Hugging Face API Key**
    - **Hartsy API Key**
 
+   Free Hartsy models search and download without a key. A subscriber-gated Hartsy model needs a key that holds the `models:download` permission, which you grant when you create the key on hartsy.ai.
+
 > [!WARNING]
 > Never share your API keys. They're stored in your SwarmUI user data and are only ever sent to the corresponding provider's API.
 
