@@ -303,12 +303,12 @@ public class CivitAIProvider : IModelBrowserProvider
             includeNsfw = false;
         }
         limit = Math.Clamp(limit, 1, 50);
-        string cacheKey = $"images:{modelVersionId}:{limit}:{includeNsfw}";
+        string apiKey = session.User.GetGenericData("civitai_api", "key");
+        string cacheKey = $"images:{session.User.UserID}:{!string.IsNullOrEmpty(apiKey)}:{modelVersionId}:{limit}:{includeNsfw}";
         if (ImagesCache.TryGet(cacheKey, out JObject cached))
         {
             return cached;
         }
-        string apiKey = session.User.GetGenericData("civitai_api", "key");
         UrlBuilder builder = new($"https://{GetApiHost(includeNsfw)}/api/v1/images");
         builder.Add("modelVersionId", modelVersionId.ToString());
         builder.Add("limit", limit);
@@ -433,12 +433,12 @@ public class CivitAIProvider : IModelBrowserProvider
         {
             return new JObject() { ["success"] = false, ["error"] = "Model version ID is required." };
         }
-        string cacheKey = $"versionfiles:{modelVersionId}";
+        string apiKey = session.User.GetGenericData("civitai_api", "key");
+        string cacheKey = $"versionfiles:{session.User.UserID}:{!string.IsNullOrEmpty(apiKey)}:{modelVersionId}";
         if (VersionFilesCache.TryGet(cacheKey, out JObject cached))
         {
             return cached;
         }
-        string apiKey = session.User.GetGenericData("civitai_api", "key");
         string url = $"https://{SfwHost}/api/v1/model-versions/{modelVersionId}";
         JObject data = await FetchJsonAsync(url, $"CivitAI version files {modelVersionId}", apiKey);
         if (data.ContainsKey("error"))
