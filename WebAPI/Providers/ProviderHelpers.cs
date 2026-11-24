@@ -139,7 +139,8 @@ public static class ModelResultBuilder
                     ["downloadUrl"] = vUrl,
                     ["fileSize"] = vFile.Value<long?>("sizeKB") is long vKb ? (JToken)(vKb * 1024) : null,
                     ["earlyAccessEndsAt"] = ver.Value<string>("earlyAccessEndsAt") ?? "",
-                    ["air"] = ver.Value<string>("air") ?? ""
+                    ["air"] = ver.Value<string>("air") ?? "",
+                    ["trainedWords"] = ver["trainedWords"] as JArray ?? []
                 });
             }
         }

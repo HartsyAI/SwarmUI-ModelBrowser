@@ -259,25 +259,42 @@
 
         getPopoverExtras: function (item, menuDiv, selection) {
             const utils = window.ModelBrowser && window.ModelBrowser.Utils;
-            const trainedWords = Array.isArray(item.trainedWords) ? item.trainedWords : [];
-            if (trainedWords.length > 0) {
+            const versions = Array.isArray(item.downloadOptions) ? item.downloadOptions : [];
+            // The menu is built once, so read the version picked on the card at click time.
+            const pickedVersion = () => {
+                const id = `${(selection && selection.modelVersionId) || item.modelVersionId}`;
+                return versions.find(v => v && `${v.modelVersionId}` === id) || null;
+            };
+            const pickedWords = () => {
+                const version = pickedVersion();
+                const words = version ? version.trainedWords : item.trainedWords;
+                return Array.isArray(words) ? words : [];
+            };
+            const pickedAir = () => {
+                const version = pickedVersion();
+                return version ? `${version.air || ''}` : `${item.air || ''}`;
+            };
+            const hasWords = (Array.isArray(item.trainedWords) && item.trainedWords.length > 0) || versions.some(v => v && Array.isArray(v.trainedWords) && v.trainedWords.length > 0);
+            if (hasWords) {
                 const triggerBtn = document.createElement('div');
                 triggerBtn.className = 'sui_popover_model_button';
-                triggerBtn.innerText = `${translate('Copy Trigger Words')} (${trainedWords.length})`;
+                triggerBtn.innerText = translate('Copy Trigger Words');
                 triggerBtn.onclick = () => {
-                    if (typeof copyText === 'function') {
-                        copyText(trainedWords.join(', '));
+                    const words = pickedWords();
+                    if (words.length > 0 && typeof copyText === 'function') {
+                        copyText(words.join(', '));
                     }
                 };
                 menuDiv.appendChild(triggerBtn);
             }
-            if (item.air) {
+            if (item.air || versions.some(v => v && v.air)) {
                 const airBtn = document.createElement('div');
                 airBtn.className = 'sui_popover_model_button';
                 airBtn.innerText = translate('Copy AIR URN');
                 airBtn.onclick = () => {
-                    if (typeof copyText === 'function') {
-                        copyText(`${item.air}`);
+                    const air = pickedAir();
+                    if (air && typeof copyText === 'function') {
+                        copyText(air);
                     }
                 };
                 menuDiv.appendChild(airBtn);
