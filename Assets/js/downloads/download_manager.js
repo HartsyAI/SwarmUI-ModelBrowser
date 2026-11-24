@@ -226,10 +226,20 @@
         }
     }
 
+    /** Drops a download from the panel, eg once it is cleared, or when another tab already cleared it. */
+    function forget(id) {
+        records.delete(id);
+        removeCard(id);
+        reconcilePolling();
+    }
+
     async function resumeDownload(id) {
         const resp = await call('ModelBrowserResumeDownload', { id });
         if (resp && resp.download) {
             setRecord(resp.download);
+        }
+        else if (resp && resp.error === 'Download not found.') {
+            forget(id);
         }
         else if (resp && resp.error) {
             console.warn(`[ModelBrowser] resume failed: ${resp.error}`);
@@ -239,10 +249,8 @@
 
     async function clearDownload(id) {
         const resp = await call('ModelBrowserClearDownload', { id });
-        if (resp && resp.success) {
-            records.delete(id);
-            removeCard(id);
-            reconcilePolling();
+        if (resp && (resp.success || resp.error === 'Download not found.')) {
+            forget(id);
         }
         else if (resp && resp.error) {
             console.warn(`[ModelBrowser] clear failed: ${resp.error}`);
