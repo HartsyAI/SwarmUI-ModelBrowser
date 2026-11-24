@@ -34,7 +34,8 @@ public static class DownloadManager
 
     private const int ReadBufferSize = 256 * 1024;
 
-    /// <summary>Held while Start or Resume checks a download's state and claims it, so two requests never start two transfers into one file.</summary>
+    /// <summary>Held while Start, Resume or Clear checks a download's state and acts on it, so two requests never run two
+    /// transfers into one file or delete a file a transfer is writing.</summary>
     private static readonly object StartLock = new();
 
     /// <summary>Redirects one download may take before it is refused.</summary>
@@ -154,6 +155,11 @@ public static class DownloadManager
     /// <summary>Upserts one download record into its owning user's generic-data store.</summary>
     private static void SaveRecord(DownloadRecord rec)
     {
+        // A transfer still settling after a Clear must not write the cleared record back.
+        if (!Records.TryGetValue(rec.Id, out DownloadRecord current) || !ReferenceEquals(current, rec))
+        {
+            return;
+        }
         User user = Program.Sessions.GetUser(rec.UserId, makeNew: false);
         if (user is null)
         {
@@ -364,24 +370,27 @@ public static class DownloadManager
         {
             return error;
         }
-        if (rec.State == DownloadState.Downloading)
+        lock (StartLock)
         {
-            return new JObject() { ["error"] = "Cancel the download before clearing it." };
-        }
-        // A completed download's part file was moved into place. An older record's PartPath can be shared with a newer
-        // download to the same destination, so only an unfinished download owns its part file.
-        try
-        {
-            if (rec.State != DownloadState.Completed && File.Exists(rec.PartPath))
+            if (rec.State == DownloadState.Downloading)
             {
-                File.Delete(rec.PartPath);
+                return new JObject() { ["error"] = "Cancel the download before clearing it." };
             }
+            // A completed download's part file was moved into place. An older record's PartPath can be shared with a newer
+            // download to the same destination, so only an unfinished download owns its part file.
+            try
+            {
+                if (rec.State != DownloadState.Completed && File.Exists(rec.PartPath))
+                {
+                    File.Delete(rec.PartPath);
+                }
+            }
+            catch (Exception ex)
+            {
+                return new JObject() { ["error"] = $"Failed to delete partial file: {ex.Message}" };
+            }
+            Records.TryRemove(rec.Id, out _);
         }
-        catch (Exception ex)
-        {
-            return new JObject() { ["error"] = $"Failed to delete partial file: {ex.Message}" };
-        }
-        Records.TryRemove(rec.Id, out _);
         RemoveRecord(rec.UserId, rec.Id);
         return new JObject() { ["success"] = true };
     }
