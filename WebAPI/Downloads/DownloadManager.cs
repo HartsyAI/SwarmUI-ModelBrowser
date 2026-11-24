@@ -601,8 +601,8 @@ public static class DownloadManager
         }
     }
 
-    /// <summary>Moves the finished part file into place and marks the download Completed, then runs <see cref="FinalizeDownload"/>.
-    /// The model is saved by then, so a failure there is logged and noted instead of failing the download.</summary>
+    /// <summary>Moves the finished part file into place, runs <see cref="FinalizeDownload"/> and marks the download Completed.
+    /// The model is saved once it is moved, so a failure in FinalizeDownload is logged and noted instead of failing the download.</summary>
     private static void CompleteDownload(DownloadRecord rec)
     {
         if (File.Exists(rec.OutPath))
@@ -610,10 +610,6 @@ public static class DownloadManager
             throw new SwarmReadableErrorException($"Download finished, but a model already exists at '{rec.OutPath}'. Move that file, then Retry.");
         }
         File.Move(rec.PartPath, rec.OutPath, overwrite: false);
-        rec.State = DownloadState.Completed;
-        rec.PerSecond = 0;
-        rec.UpdatedAtMs = NowMs();
-        SaveRecord(rec);
         try
         {
             FinalizeDownload(rec);
@@ -623,6 +619,10 @@ public static class DownloadManager
             rec.TransientNote = "The model was saved, but writing its metadata or refreshing the model list failed. See the server log.";
             Logs.Warning($"[ModelBrowser] download '{rec.Name}' was saved, but finishing its setup failed: {ex.ReadableString()}");
         }
+        rec.State = DownloadState.Completed;
+        rec.PerSecond = 0;
+        rec.UpdatedAtMs = NowMs();
+        SaveRecord(rec);
     }
 
     /// <summary>Repeats core's post-download steps (metadata sidecar, handler refresh, optional resave), so the model matches

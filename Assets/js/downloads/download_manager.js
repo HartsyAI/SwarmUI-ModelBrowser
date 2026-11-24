@@ -152,6 +152,8 @@
         // State classes go on the outer `.model-browser-download-card`, which the state colors and Show completed select on.
         els.root.classList.remove('model-browser-state-downloading', 'model-browser-state-paused', 'model-browser-state-errored', 'model-browser-state-completed');
         els.root.classList.add(`model-browser-state-${rec.state}`);
+        // Keeps a finished card with a note on screen even while completed downloads are hidden.
+        els.root.classList.toggle('model-browser-has-note', !!rec.note);
         renderActions(els.actions, rec);
     }
 
@@ -218,6 +220,12 @@
         }
     }
 
+    function showFailure(message) {
+        if (typeof showError === 'function') {
+            showError(message);
+        }
+    }
+
     async function resumeDownload(id) {
         const resp = await call('ModelBrowserResumeDownload', { id });
         if (resp && resp.download) {
@@ -225,6 +233,7 @@
         }
         else if (resp && resp.error) {
             console.warn(`[ModelBrowser] resume failed: ${resp.error}`);
+            showFailure(`${translate('Could not resume the download:')} ${resp.error}`);
         }
     }
 
@@ -237,6 +246,7 @@
         }
         else if (resp && resp.error) {
             console.warn(`[ModelBrowser] clear failed: ${resp.error}`);
+            showFailure(`${translate('Could not clear the download:')} ${resp.error}`);
         }
     }
 
