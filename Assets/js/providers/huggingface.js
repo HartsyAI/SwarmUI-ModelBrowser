@@ -100,9 +100,12 @@
             }, null, 2);
             utils.loadUrlIntoManualDownloader(bestDownloadUrl || openUrl);
             utils.setManualDownloaderInfo(infoHtml, rawMeta, '');
+            const loadedUrl = window.modelDownloader && modelDownloader.url ? modelDownloader.url.value : '';
             if (modelId) {
                 const img = await getImage(modelId);
-                if (img) {
+                // Another card may have been loaded while the image was fetched; its info must not be replaced with this one's.
+                const stillLoaded = window.modelDownloader && modelDownloader.url && modelDownloader.url.value === loadedUrl;
+                if (img && stillLoaded) {
                     const rawMetaWithThumb = JSON.stringify({
                         'modelspec.title': title || modelId || '',
                         'modelspec.description': link ? `From ${link}\n${descText || ''}` : (descText || ''),
