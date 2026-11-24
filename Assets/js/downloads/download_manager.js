@@ -41,7 +41,7 @@
     /** Builds the status line for a card. Returned as HTML (not text) since the errored case needs a link. */
     function statusHtml(rec) {
         const known = rec.totalBytes > 0;
-        // Set only when the server refused a resume and the byte count restarted from zero.
+        // A note for this attempt only, eg that a refused resume restarted from zero or that setup failed after the save.
         const noteHtml = rec.note ? `<br>${escapeHtml(rec.note)}` : '';
         if (rec.state === 'downloading') {
             const speed = rec.perSecond > 0 ? ` - ${formatBytes(rec.perSecond)}/s` : '';
@@ -66,7 +66,7 @@
             return html;
         }
         if (rec.state === 'completed') {
-            return `${translate('Done!')} ${formatBytes(rec.totalBytes || rec.downloadedBytes)}`;
+            return `${translate('Done!')} ${formatBytes(rec.totalBytes || rec.downloadedBytes)}${noteHtml}`;
         }
         return '';
     }

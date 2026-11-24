@@ -408,47 +408,83 @@ public static class DownloadManager
         return request;
     }
 
+    /// <summary>Throws a readable error for a transfer answer other than 200 or 206, with the refusal reason and key hint for a 401 or 403.</summary>
+    private static async Task EnsureTransferResponseAsync(HttpResponseMessage response, string authHint)
+    {
+        if (response.StatusCode is HttpStatusCode.OK or HttpStatusCode.PartialContent)
+        {
+            return;
+        }
+        string message = $"Failed to download: got response code {(int)response.StatusCode} {response.StatusCode}";
+        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+        {
+            string reason = await Utilities.GetResponseErrorReason(response);
+            if (reason is not null)
+            {
+                message += $" (\"{reason}\")";
+            }
+            if (authHint is not null)
+            {
+                message += $". {authHint}";
+            }
+        }
+        throw new SwarmReadableErrorException(message);
+    }
+
+    /// <summary>Whether a transfer answer's body starts at the given byte: a 206 for that offset, or a 200 when it is zero.</summary>
+    private static bool StartsAt(HttpResponseMessage response, long offset)
+    {
+        return response.StatusCode == HttpStatusCode.PartialContent ? response.Content.Headers.ContentRange?.From == offset : offset == 0;
+    }
+
     /// <summary>Runs one transfer, resuming when the part file already holds bytes. Detached from any request; only
     /// `rec.Canceller` or shutdown stops it.</summary>
     private static async Task RunDownloadAsync(DownloadRecord rec, string requestUrl, Dictionary<string, string> headers, string authHint)
     {
         CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(Program.GlobalProgramCancel, rec.Canceller.Token);
+        HttpResponseMessage response = null;
         try
         {
-            bool isResume = rec.DownloadedBytes > 0 && File.Exists(rec.PartPath);
-            using HttpResponseMessage response = await SendDownloadAsync(requestUrl, headers, rec, isResume, linked.Token);
-            if (response.StatusCode != HttpStatusCode.OK && response.StatusCode != HttpStatusCode.PartialContent)
+            // Append continues at the end of the part file, which a cancelled write can leave past the counted bytes.
+            rec.DownloadedBytes = rec.DownloadedBytes > 0 && File.Exists(rec.PartPath) ? new FileInfo(rec.PartPath).Length : 0;
+            bool isResume = rec.DownloadedBytes > 0;
+            if (isResume && rec.DownloadedBytes == rec.TotalBytes)
             {
-                string message = $"Failed to download: got response code {(int)response.StatusCode} {response.StatusCode}";
-                if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
-                {
-                    string reason = await Utilities.GetResponseErrorReason(response);
-                    if (reason is not null)
-                    {
-                        message += $" (\"{reason}\")";
-                    }
-                    if (authHint is not null)
-                    {
-                        message += $". {authHint}";
-                    }
-                }
-                throw new SwarmReadableErrorException(message);
+                // Every byte is already here, and a Range request past the end would only be refused with 416.
+                CompleteDownload(rec);
+                return;
             }
-            bool serverHonoredRange = response.StatusCode == HttpStatusCode.PartialContent
-                && response.Content.Headers.ContentRange is not null
-                && response.Content.Headers.ContentRange.From == rec.DownloadedBytes;
-            if (isResume && !serverHonoredRange)
+            response = await SendDownloadAsync(requestUrl, headers, rec, isResume, linked.Token);
+            if (isResume && response.StatusCode == HttpStatusCode.RequestedRangeNotSatisfiable && response.Content.Headers.ContentRange?.Length == rec.DownloadedBytes)
+            {
+                CompleteDownload(rec);
+                return;
+            }
+            await EnsureTransferResponseAsync(response, authHint);
+            if (isResume && !StartsAt(response, rec.DownloadedBytes))
             {
                 // The server ignored the Range or answered a different one; appending would corrupt the file, so restart and say why.
-                string reason = response.StatusCode == HttpStatusCode.PartialContent ? "returned a different byte range than requested" : "did not support resuming";
+                bool wrongRange = response.StatusCode == HttpStatusCode.PartialContent;
+                string reason = wrongRange ? "returned a different byte range than requested" : "did not support resuming";
                 rec.TransientNote = $"The server {reason}, so this download restarted from the beginning.";
                 Logs.Info($"[ModelBrowser] download '{rec.Name}' {reason}; restarting from scratch.");
                 isResume = false;
                 rec.DownloadedBytes = 0;
+                if (wrongRange)
+                {
+                    // That body is only part of the file, so ask for all of it.
+                    response.Dispose();
+                    response = await SendDownloadAsync(requestUrl, headers, rec, false, linked.Token);
+                    await EnsureTransferResponseAsync(response, authHint);
+                }
+            }
+            if (!StartsAt(response, rec.DownloadedBytes))
+            {
+                throw new SwarmReadableErrorException("Failed to download: the server sent a different part of the file than requested.");
             }
             rec.ETag = response.Headers.ETag?.Tag ?? rec.ETag;
             rec.LastModified = response.Content.Headers.LastModified?.ToString("R") ?? rec.LastModified;
-            long? reportedTotal = serverHonoredRange ? response.Content.Headers.ContentRange?.Length : response.Content.Headers.ContentLength;
+            long? reportedTotal = response.StatusCode == HttpStatusCode.PartialContent ? response.Content.Headers.ContentRange?.Length : response.Content.Headers.ContentLength;
             if (reportedTotal.HasValue && reportedTotal.Value > 0)
             {
                 rec.TotalBytes = reportedTotal.Value;
@@ -508,11 +544,7 @@ public static class DownloadManager
             {
                 throw new SwarmReadableErrorException($"Download incomplete: expected {rec.TotalBytes} bytes but got {rec.DownloadedBytes} bytes.");
             }
-            FinalizeDownload(rec);
-            rec.State = DownloadState.Completed;
-            rec.PerSecond = 0;
-            rec.UpdatedAtMs = NowMs();
-            SaveRecord(rec);
+            CompleteDownload(rec);
         }
         catch (OperationCanceledException)
         {
@@ -535,15 +567,39 @@ public static class DownloadManager
         }
         finally
         {
+            response?.Dispose();
             linked.Dispose();
         }
     }
 
-    /// <summary>Moves the finished part file into place and repeats core's post-download steps (metadata sidecar, handler
-    /// refresh, optional resave), so the model matches one fetched by core's downloader.</summary>
+    /// <summary>Moves the finished part file into place and marks the download Completed, then runs <see cref="FinalizeDownload"/>.
+    /// The model is saved by then, so a failure there is logged and noted instead of failing the download.</summary>
+    private static void CompleteDownload(DownloadRecord rec)
+    {
+        if (File.Exists(rec.OutPath))
+        {
+            throw new SwarmReadableErrorException($"Download finished, but a model already exists at '{rec.OutPath}'. Move that file, then Retry.");
+        }
+        File.Move(rec.PartPath, rec.OutPath, overwrite: false);
+        rec.State = DownloadState.Completed;
+        rec.PerSecond = 0;
+        rec.UpdatedAtMs = NowMs();
+        SaveRecord(rec);
+        try
+        {
+            FinalizeDownload(rec);
+        }
+        catch (Exception ex)
+        {
+            rec.TransientNote = "The model was saved, but writing its metadata or refreshing the model list failed. See the server log.";
+            Logs.Warning($"[ModelBrowser] download '{rec.Name}' was saved, but finishing its setup failed: {ex.ReadableString()}");
+        }
+    }
+
+    /// <summary>Repeats core's post-download steps (metadata sidecar, handler refresh, optional resave), so the model matches
+    /// one fetched by core's downloader.</summary>
     private static void FinalizeDownload(DownloadRecord rec)
     {
-        File.Move(rec.PartPath, rec.OutPath, overwrite: false);
         if (!string.IsNullOrWhiteSpace(rec.Metadata))
         {
             File.WriteAllText(Path.ChangeExtension(rec.OutPath, "swarm.json"), rec.Metadata);
