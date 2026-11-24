@@ -58,12 +58,17 @@ public class ProviderCache(TimeSpan ttl)
 /// <summary>Builds normalized model result JObjects from provider-specific data.</summary>
 public static class ModelResultBuilder
 {
-    /// <summary>Picks a CivitAI version's first .safetensors, .sft or .gguf file, else its first file.</summary>
+    /// <summary>Picks a CivitAI version's primary file, else its first .safetensors, .sft or .gguf file, else its first file.</summary>
     public static JObject SelectBestFile(JArray files)
     {
         if (files is null || files.Count == 0)
         {
             return null;
+        }
+        JObject primary = files.OfType<JObject>().FirstOrDefault(f => f.Value<bool?>("primary") == true);
+        if (primary is not null)
+        {
+            return primary;
         }
         foreach (JObject f in files.OfType<JObject>())
         {

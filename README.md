@@ -149,7 +149,7 @@ Finished downloads turn green and can be **Dismiss**ed. They are hidden by defau
 - Browsing without a search query uses page-based pagination; searching by name uses CivitAI's cursor-based pagination
 - NSFW results need the `model_browser_nsfw` permission and the NSFW checkbox (see [NSFW filtering](#nsfw-filtering)), and are fetched from `civitai.red` instead of `civitai.com`
 - An API key unlocks gated/early-access models and raises rate limits
-- File selection prefers `.safetensors`, `.sft` and `.gguf` files
+- A card's default file is the version's primary file, falling back to its first `.safetensors`, `.sft` or `.gguf` file
 
 ### Hugging Face
 
