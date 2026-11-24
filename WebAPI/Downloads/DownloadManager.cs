@@ -470,24 +470,35 @@ public static class DownloadManager
                 return;
             }
             response = await SendDownloadAsync(requestUrl, headers, rec, isResume, linked.Token);
-            if (isResume && response.StatusCode == HttpStatusCode.RequestedRangeNotSatisfiable && response.Content.Headers.ContentRange?.Length == rec.DownloadedBytes)
+            string restartReason = null;
+            if (isResume && response.StatusCode == HttpStatusCode.RequestedRangeNotSatisfiable)
             {
-                CompleteDownload(rec);
-                return;
+                if (rec.TotalBytes <= 0 && response.Content.Headers.ContentRange?.Length == rec.DownloadedBytes)
+                {
+                    // The server's file is exactly as long as the part file, so every byte is already here.
+                    CompleteDownload(rec);
+                    return;
+                }
+                restartReason = "no longer has the bytes this download stopped at";
             }
-            await EnsureTransferResponseAsync(response, authHint);
-            if (isResume && !StartsAt(response, rec.DownloadedBytes))
+            else
             {
-                // The server ignored the Range or answered a different one; appending would corrupt the file, so restart and say why.
-                bool wrongRange = response.StatusCode == HttpStatusCode.PartialContent;
-                string reason = wrongRange ? "returned a different byte range than requested" : "did not support resuming";
-                rec.TransientNote = $"The server {reason}, so this download restarted from the beginning.";
-                Logs.Info($"[ModelBrowser] download '{rec.Name}' {reason}; restarting from scratch.");
+                await EnsureTransferResponseAsync(response, authHint);
+                if (isResume && !StartsAt(response, rec.DownloadedBytes))
+                {
+                    restartReason = response.StatusCode == HttpStatusCode.PartialContent ? "returned a different byte range than requested" : "did not support resuming";
+                }
+            }
+            if (restartReason is not null)
+            {
+                // Appending what the server sent would corrupt the file, so restart and say why.
+                rec.TransientNote = $"The server {restartReason}, so this download restarted from the beginning.";
+                Logs.Info($"[ModelBrowser] download '{rec.Name}' {restartReason}; restarting from scratch.");
                 isResume = false;
                 rec.DownloadedBytes = 0;
-                if (wrongRange)
+                if (response.StatusCode != HttpStatusCode.OK)
                 {
-                    // That body is only part of the file, so ask for all of it.
+                    // Only a 200 carries the whole file; any other answer is asked for again without a Range.
                     response.Dispose();
                     response = await SendDownloadAsync(requestUrl, headers, rec, false, linked.Token);
                     await EnsureTransferResponseAsync(response, authHint);
@@ -497,8 +508,11 @@ public static class DownloadManager
             {
                 throw new SwarmReadableErrorException("Failed to download: the server sent a different part of the file than requested.");
             }
-            rec.ETag = response.Headers.ETag?.Tag ?? rec.ETag;
-            rec.LastModified = response.Content.Headers.LastModified?.ToString("R") ?? rec.LastModified;
+            // If-Range accepts only a strong ETag. A fresh copy replaces both validators, since the old ones describe the old file.
+            string etag = response.Headers.ETag is { IsWeak: false } strongTag ? strongTag.Tag : null;
+            string lastModified = response.Content.Headers.LastModified?.ToString("R");
+            rec.ETag = isResume ? (etag ?? rec.ETag) : etag;
+            rec.LastModified = isResume ? (lastModified ?? rec.LastModified) : lastModified;
             long? reportedTotal = response.StatusCode == HttpStatusCode.PartialContent ? response.Content.Headers.ContentRange?.Length : response.Content.Headers.ContentLength;
             if (reportedTotal.HasValue && reportedTotal.Value > 0)
             {
