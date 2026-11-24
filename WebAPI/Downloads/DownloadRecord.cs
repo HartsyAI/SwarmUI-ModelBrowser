@@ -104,7 +104,7 @@ public class DownloadRecord
             DownloadedBytes = (long)(obj["downloadedBytes"] ?? 0),
             ETag = obj["etag"]?.ToString(),
             LastModified = obj["lastModified"]?.ToString(),
-            State = Enum.TryParse(($"{obj["state"]}"), out DownloadState state) ? state : DownloadState.Errored,
+            State = Enum.TryParse($"{obj["state"]}", out DownloadState state) ? state : DownloadState.Errored,
             ErrorMessage = obj["errorMessage"]?.ToString(),
             CreatedAtMs = (long)(obj["createdAtMs"] ?? 0),
             UpdatedAtMs = (long)(obj["updatedAtMs"] ?? 0)

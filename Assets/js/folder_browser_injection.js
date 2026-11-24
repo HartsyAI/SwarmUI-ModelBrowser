@@ -13,12 +13,15 @@
                 if (node.textContent.trim() === ':' || node.textContent.includes('Folder')) {
                     node.textContent = '';
                 }
-            } else if (node.nodeType === Node.ELEMENT_NODE) {
+            }
+            else if (node.nodeType === Node.ELEMENT_NODE) {
                 if (node.tagName === 'B' && node.textContent.trim() === 'Folder') {
                     node.style.display = 'none';
-                } else if (node.classList && node.classList.contains('auto-input-qbutton')) {
+                }
+                else if (node.classList && node.classList.contains('auto-input-qbutton')) {
                     node.style.display = 'none';
-                } else if (node.tagName === 'BR') {
+                }
+                else if (node.tagName === 'BR') {
                     node.style.display = 'none';
                     break;
                 }
@@ -58,18 +61,13 @@
         if (!window.modelDownloader) {
             return false;
         }
-
         const mdl = window.modelDownloader;
-
         if (mdl._folderBrowserInjected) {
             return true;
         }
-
         const oldFolderDropdown = document.getElementById('model_downloader_folder');
-
         let folderBrowser = document.getElementById('model_downloader_folder_browser');
         let selectedFolderDisplay = document.getElementById('model_downloader_selected_folder');
-
         if (!folderBrowser || !selectedFolderDisplay) {
             if (!oldFolderDropdown) {
                 return false;
@@ -84,36 +82,30 @@
             else {
                 oldFolderDropdown.insertAdjacentHTML('afterend', `<br><span style="font-weight: bold;">${translate('Destination Folder')}</span>: ${chipHTML}${treeHTML}`);
             }
-
             folderBrowser = document.getElementById('model_downloader_folder_browser');
             selectedFolderDisplay = document.getElementById('model_downloader_selected_folder');
         }
         else if (oldFolderDropdown) {
             oldFolderDropdown.style.display = 'none';
         }
-
         if (!folderBrowser || !selectedFolderDisplay) {
             return false;
         }
-
         mdl.folderBrowser = folderBrowser;
         mdl.selectedFolderDisplay = selectedFolderDisplay;
         mdl.selectedFolder = '(None)';
         mdl.expandedFolders = new Set();
         mdl.folderBrowserVisible = false;
-
         selectedFolderDisplay.addEventListener('click', () => mdl.toggleFolderBrowser());
 
         mdl.buildFolderBrowser = function() {
             if (!this.folderBrowser) {
                 return;
             }
-
             try {
                 const selectedType = this.type.value;
                 let folderList = [];
                 const submap = coreModelMap ? coreModelMap[selectedType] : null;
-
                 if (submap) {
                     for (let model of submap) {
                         let parts = model.split('/');
@@ -129,7 +121,6 @@
                     }
                 }
                 folderList.sort();
-
                 let tree = {};
                 for (let folder of folderList) {
                     let parts = folder.split('/');
@@ -141,7 +132,6 @@
                         current = current[parts[i]];
                     }
                 }
-
                 let html = '<div class="folder-browser-header">';
                 html += `<div class="folder-item ${this.selectedFolder === '(None)' ? 'selected' : ''}" onclick="modelDownloader.selectFolder('(None)')">`;
                 html += `<span class="folder-icon">\uD83D\uDCC1</span> <span class="folder-name">${translate('Root Folder')}</span>`;
@@ -151,9 +141,9 @@
                 html += '<div class="folder-tree">';
                 html += this.renderFolderTree(tree, '');
                 html += '</div>';
-
                 this.folderBrowser.innerHTML = html;
-            } catch (e) {
+            }
+            catch (e) {
                 console.error('[ModelBrowser] Error building folder browser:', e);
             }
         };
@@ -166,25 +156,21 @@
                 let isExpanded = this.expandedFolders.has(fullPath);
                 let isSelected = this.selectedFolder === fullPath;
                 let escapedPath = escapeJsString(fullPath);
-
                 html += '<div class="folder-item-wrapper">';
                 html += `<div class="folder-item ${isSelected ? 'selected' : ''}" data-folder="${escapeHtml(fullPath)}">`;
-
                 if (hasChildren) {
                     html += `<span class="folder-toggle" onclick="modelDownloader.toggleFolder('${escapedPath}')">${isExpanded ? '\u25BC' : '\u25B6'}</span>`;
-                } else {
+                }
+                else {
                     html += '<span class="folder-toggle-spacer"></span>';
                 }
-
                 html += `<span class="folder-icon">\uD83D\uDCC1</span> <span class="folder-name" onclick="modelDownloader.selectFolder('${escapedPath}')">${escapeHtml(folderName)}</span>`;
                 html += '</div>';
-
                 if (hasChildren && isExpanded) {
                     html += '<div class="folder-children">';
                     html += this.renderFolderTree(tree[folderName], fullPath);
                     html += '</div>';
                 }
-
                 html += '</div>';
             }
             return html;
@@ -206,7 +192,8 @@
         mdl.toggleFolder = function(folderPath) {
             if (this.expandedFolders.has(folderPath)) {
                 this.expandedFolders.delete(folderPath);
-            } else {
+            }
+            else {
                 this.expandedFolders.add(folderPath);
             }
             this.buildFolderBrowser();
@@ -254,7 +241,6 @@
             };
             mdl.reloadFolders._folderBrowserWrapped = true;
         }
-
         if (mdl.type) {
             mdl.type.addEventListener('change', () => {
                 mdl.selectedFolder = '(None)';
@@ -263,7 +249,6 @@
                 mdl.buildFolderBrowser();
             });
         }
-
         if (mdl.run && !mdl.run._folderBrowserWrapped) {
             const origRun = mdl.run;
             mdl.run = function() {
@@ -272,9 +257,7 @@
             };
             mdl.run._folderBrowserWrapped = true;
         }
-
         mdl.buildFolderBrowser();
-
         mdl._folderBrowserInjected = true;
         return true;
     }

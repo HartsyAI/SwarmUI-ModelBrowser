@@ -13,10 +13,14 @@
         const order = ['hartsy', 'civitai', 'huggingface'];
         const result = [];
         for (const id of order) {
-            if (providers[id]) result.push(providers[id]);
+            if (providers[id]) {
+                result.push(providers[id]);
+            }
         }
         for (const id of Object.keys(providers)) {
-            if (!order.includes(id)) result.push(providers[id]);
+            if (!order.includes(id)) {
+                result.push(providers[id]);
+            }
         }
         return result;
     }
@@ -130,7 +134,9 @@
             const optEl = document.createElement('option');
             optEl.value = opt.value;
             optEl.textContent = translatable ? translate(opt.label) : opt.label;
-            if (opt.value === currentValue) optEl.selected = true;
+            if (opt.value === currentValue) {
+                optEl.selected = true;
+            }
             selectEl.appendChild(optEl);
         }
     }
@@ -140,16 +146,21 @@
             const utils = window.ModelBrowser.Utils;
             const ModelCard = window.ModelBrowser.Components.ModelCard;
             const ModelPopover = window.ModelBrowser.Components.ModelPopover;
-            if (!utils || !ModelCard || !ModelPopover) return false;
-
+            if (!utils || !ModelCard || !ModelPopover) {
+                return false;
+            }
             const wrapper = document.querySelector('.model-downloader-section-wrapper');
             const main = document.querySelector('.model-downloader-main-section');
-            if (!wrapper || !main) return false;
-            if (wrapper.dataset.modelBrowserBrowserDone) return true;
-
+            if (!wrapper || !main) {
+                return false;
+            }
+            if (wrapper.dataset.modelBrowserBrowserDone) {
+                return true;
+            }
             const providers = listProvidersInOrder();
-            if (!providers.length) return false;
-
+            if (!providers.length) {
+                return false;
+            }
             const card = createBrowserCard();
             const providerSelect = card.querySelector('.model-browser-provider');
             const query = card.querySelector('.model-browser-query');
@@ -169,15 +180,15 @@
             const prevBtn = card.querySelector('.model-browser-prev');
             const nextBtn = card.querySelector('.model-browser-next');
             const pageInfo = card.querySelector('.model-browser-pageinfo');
-
             for (const p of providers) {
                 const opt = document.createElement('option');
                 opt.value = p.id;
                 opt.textContent = p.displayName || p.id;
-                if (p.id === 'hartsy') opt.selected = true;
+                if (p.id === 'hartsy') {
+                    opt.selected = true;
+                }
                 providerSelect.appendChild(opt);
             }
-
             const state = {
                 inflight: false,
                 providerId: providerSelect.value || providers[0].id,
@@ -190,9 +201,15 @@
 
             const isProviderCursorPaged = () => {
                 const prov = getProvider(state.providerId);
-                if (!prov) return false;
-                if (prov.id === 'hartsy') return false;
-                if (prov.id !== 'civitai') return true;
+                if (!prov) {
+                    return false;
+                }
+                if (prov.id === 'hartsy') {
+                    return false;
+                }
+                if (prov.id !== 'civitai') {
+                    return true;
+                }
                 return !!(state.lastQuery && state.lastQuery.trim().length);
             };
 
@@ -200,15 +217,15 @@
                 const prov = getProvider(state.providerId);
                 const isFilterable = !!(prov && prov.supportsFilters);
                 const isNsfw = !!(prov && prov.supportsNsfw);
-
                 if (prov && prov.id === 'huggingface') {
                     query.placeholder = translate('Search Hugging Face...');
-                } else if (prov && prov.id === 'hartsy') {
+                }
+                else if (prov && prov.id === 'hartsy') {
                     query.placeholder = translate('Search Hartsy...');
-                } else {
+                }
+                else {
                     query.placeholder = translate('Search...');
                 }
-
                 // Hartsy has no type concept (checkpoint vs LoRA is an architecture distinction), so its type filter stays disabled.
                 typeFilter.disabled = !(prov && (prov.id === 'civitai' || prov.id === 'huggingface'));
                 baseModelFilter.disabled = !isFilterable;
@@ -219,10 +236,12 @@
                         const formatted = archOptions.map(a => (typeof a === 'string') ? { value: a, label: a } : a);
                         const defaultArch = prov.getDefaultArchitecture ? await prov.getDefaultArchitecture() : 'All';
                         populateSelect(baseModelFilter, formatted, defaultArch);
-                    } catch {
+                    }
+                    catch {
                         populateSelect(baseModelFilter, [{ value: 'All', label: 'All' }], 'All', true);
                     }
-                } else if (prov && prov.id === 'civitai') {
+                }
+                else if (prov && prov.id === 'civitai') {
                     populateSelect(typeFilter, civitaiTypeOptions, state.lastType || 'LORA');
                     populateSelect(baseModelFilter, defaultBaseModelOptions, state.lastBaseModel || 'All');
                     if (prov.getTypeOptions && prov.getBaseModelOptions) {
@@ -230,36 +249,38 @@
                             const [typeOpts, baseOpts] = await Promise.all([prov.getTypeOptions(), prov.getBaseModelOptions()]);
                             populateSelect(typeFilter, typeOpts, state.lastType || 'LORA');
                             populateSelect(baseModelFilter, baseOpts, state.lastBaseModel || 'All');
-                        } catch (e) {
+                        }
+                        catch (e) {
                             console.warn('[ModelBrowser] Failed to load live CivitAI filter options, using fallback list:', e);
                         }
                     }
-                } else if (prov && prov.id === 'huggingface') {
+                }
+                else if (prov && prov.id === 'huggingface') {
                     populateSelect(typeFilter, prov.getPipelineTagOptions ? prov.getPipelineTagOptions() : [], 'All');
                     populateSelect(baseModelFilter, prov.getLibraryOptions ? prov.getLibraryOptions() : [], 'All');
                 }
-
                 sortFilter.disabled = !isFilterable;
                 if (prov && prov.id === 'hartsy') {
                     populateSelect(sortFilter, hartsySortOptions, 'downloads', true);
-                } else if (prov && prov.id === 'civitai') {
+                }
+                else if (prov && prov.id === 'civitai') {
                     const civitaiSorts = prov.getSortOptions ? prov.getSortOptions() : defaultSortOptions;
                     populateSelect(sortFilter, civitaiSorts, state.lastSort || 'Most Downloaded', true);
-                } else if (prov && prov.id === 'huggingface') {
+                }
+                else if (prov && prov.id === 'huggingface') {
                     populateSelect(sortFilter, prov.getSortOptions ? prov.getSortOptions() : [], 'downloads', true);
                 }
-
                 const supportsPeriod = !!(prov && prov.supportsPeriod);
                 periodFilter.style.display = supportsPeriod ? '' : 'none';
                 periodFilter.disabled = !supportsPeriod;
                 if (supportsPeriod && prov.getPeriodOptions) {
                     populateSelect(periodFilter, prov.getPeriodOptions(), state.lastPeriod || 'AllTime', true);
                 }
-
                 civitaiRow.style.display = (prov && prov.id === 'civitai') ? '' : 'none';
-
                 nsfwToggle.disabled = !isNsfw;
-                if (!isNsfw) nsfwToggle.checked = false;
+                if (!isNsfw) {
+                    nsfwToggle.checked = false;
+                }
             };
 
             const updatePager = () => {
@@ -268,11 +289,13 @@
                     pageInfo.textContent = `${translate('Page')} ${state.cursorStack.length + 1}`;
                     prevBtn.disabled = state.cursorStack.length <= 0 || state.inflight;
                     nextBtn.disabled = !state.hasNextCursor || state.inflight;
-                } else if (prov && prov.id === 'hartsy') {
+                }
+                else if (prov && prov.id === 'hartsy') {
                     pageInfo.textContent = `${translate('Page')} ${state.page}`;
                     prevBtn.disabled = state.page <= 1 || state.inflight;
                     nextBtn.disabled = !state.hasMore || state.inflight;
-                } else {
+                }
+                else {
                     pageInfo.textContent = `${translate('Page')} ${state.page} / ${state.totalPages}`;
                     prevBtn.disabled = state.page <= 1 || state.inflight;
                     nextBtn.disabled = state.page >= state.totalPages || state.inflight;
@@ -280,7 +303,9 @@
             };
 
             const render = (items) => {
-                while (resultsEl.firstChild) resultsEl.removeChild(resultsEl.firstChild);
+                while (resultsEl.firstChild) {
+                    resultsEl.removeChild(resultsEl.firstChild);
+                }
                 for (const item of (items || [])) {
                     const { card: cardEl, renderId, selection } = ModelCard.create(item, state.providerId);
                     const popoverEl = ModelPopover.create(item, state.providerId, renderId, cardEl, selection);
@@ -298,8 +323,9 @@
                     return;
                 }
                 const prov = getProvider(state.providerId);
-                if (!prov) return;
-
+                if (!prov) {
+                    return;
+                }
                 const newQuery = query.value || '';
                 const newType = typeFilter.value || 'All';
                 const newBaseModel = baseModelFilter.value || 'All';
@@ -312,7 +338,6 @@
                 const newFromPlatform = isCivitai && !!fromPlatformToggle.checked;
                 const filterable = !!prov.supportsFilters;
                 const periodable = !!prov.supportsPeriod;
-
                 const filtersChanged =
                     state.lastQuery !== newQuery
                     || (filterable && state.lastType !== newType)
@@ -323,7 +348,6 @@
                     || (isCivitai && state.lastTag !== newTag)
                     || (isCivitai && state.lastSupportsGeneration !== newGenOnly)
                     || (isCivitai && state.lastFromPlatform !== newFromPlatform);
-
                 state.lastQuery = newQuery;
                 if (filterable) {
                     state.lastType = newType;
@@ -338,12 +362,12 @@
                     state.lastTag = newTag;
                     state.lastSupportsGeneration = newGenOnly;
                     state.lastFromPlatform = newFromPlatform;
-                } else {
+                }
+                else {
                     state.lastTag = '';
                     state.lastSupportsGeneration = false;
                     state.lastFromPlatform = false;
                 }
-
                 if (filtersChanged) {
                     state.page = 1;
                     state.totalPages = 1;
@@ -352,18 +376,18 @@
                     state.hasNextCursor = false;
                     state.nextCursor = '';
                 }
-
                 if (!isProviderCursorPaged()) {
-                    if (setPage != null) state.page = setPage;
-                } else {
+                    if (setPage != null) {
+                        state.page = setPage;
+                    }
+                }
+                else {
                     state.page = 1;
                     state.totalPages = 1;
                 }
-
                 statusEl.textContent = translate('Loading...');
                 state.inflight = true;
                 updatePager();
-
                 try {
                     const resp = await prov.search({
                         query: state.lastQuery,
@@ -379,19 +403,20 @@
                         supportsGeneration: state.lastSupportsGeneration,
                         fromPlatform: state.lastFromPlatform
                     });
-
                     if (!resp || resp.error || !resp.success) {
                         statusEl.textContent = resp && resp.error ? `${resp.error}` : translate('Failed to load.');
                         render([]);
                         state.totalPages = 1;
                         state.hasNextCursor = false;
                         state.nextCursor = '';
-                    } else {
+                    }
+                    else {
                         const mode = resp.mode || (isProviderCursorPaged() ? 'cursor' : 'page');
                         if (mode === 'cursor') {
                             state.nextCursor = (resp.nextCursor || '').trim();
                             state.hasNextCursor = state.nextCursor.length > 0;
-                        } else {
+                        }
+                        else {
                             state.page = resp.page || state.page;
                             state.totalPages = resp.totalPages || 1;
                             state.hasMore = resp.hasMore || false;
@@ -406,7 +431,8 @@
                         statusEl.textContent = statusText;
                         render(resp.items || []);
                     }
-                } catch {
+                }
+                catch {
                     statusEl.textContent = translate('Failed to load.');
                     render([]);
                     state.hasNextCursor = false;
@@ -428,7 +454,10 @@
             };
             searchBtn.onclick = () => runSearch(1);
             query.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') { e.preventDefault(); runSearch(1); }
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    runSearch(1);
+                }
             });
             typeFilter.onchange = () => runSearch(1);
             baseModelFilter.onchange = () => runSearch(1);
@@ -438,28 +467,42 @@
             genOnlyToggle.onchange = () => runSearch(1);
             fromPlatformToggle.onchange = () => runSearch(1);
             tagInput.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') { e.preventDefault(); runSearch(1); }
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    runSearch(1);
+                }
             });
             tagInput.addEventListener('change', () => runSearch(1));
-
             let tagSuggestTimer = null;
             tagInput.addEventListener('input', () => {
                 const prov = getProvider(state.providerId);
-                if (!prov || prov.id !== 'civitai' || typeof prov.suggestTags !== 'function') return;
-                if (tagSuggestTimer) clearTimeout(tagSuggestTimer);
+                if (!prov || prov.id !== 'civitai' || typeof prov.suggestTags !== 'function') {
+                    return;
+                }
+                if (tagSuggestTimer) {
+                    clearTimeout(tagSuggestTimer);
+                }
                 tagSuggestTimer = setTimeout(async () => {
                     const term = (tagInput.value || '').trim();
                     if (term.length < 2) {
-                        while (tagSuggestions.firstChild) tagSuggestions.removeChild(tagSuggestions.firstChild);
+                        while (tagSuggestions.firstChild) {
+                            tagSuggestions.removeChild(tagSuggestions.firstChild);
+                        }
                         return;
                     }
                     const tags = await prov.suggestTags(term);
-                    while (tagSuggestions.firstChild) tagSuggestions.removeChild(tagSuggestions.firstChild);
+                    while (tagSuggestions.firstChild) {
+                        tagSuggestions.removeChild(tagSuggestions.firstChild);
+                    }
                     for (const t of tags) {
-                        if (!t || !t.name) continue;
+                        if (!t || !t.name) {
+                            continue;
+                        }
                         const opt = document.createElement('option');
                         opt.value = t.name;
-                        if (t.modelCount) opt.label = `${t.name} (${t.modelCount})`;
+                        if (t.modelCount) {
+                            opt.label = `${t.name} (${t.modelCount})`;
+                        }
                         tagSuggestions.appendChild(opt);
                     }
                 }, 250);
@@ -467,27 +510,36 @@
 
             prevBtn.onclick = () => {
                 if (isProviderCursorPaged()) {
-                    if (state.cursorStack.length === 0) return;
+                    if (state.cursorStack.length === 0) {
+                        return;
+                    }
                     state.cursor = state.cursorStack.pop() || '';
                     state.nextCursor = '';
                     state.hasNextCursor = false;
                     runSearch(null);
-                } else {
+                }
+                else {
                     runSearch(Math.max(1, state.page - 1));
                 }
             };
             nextBtn.onclick = () => {
                 if (isProviderCursorPaged()) {
-                    if (!state.hasNextCursor || !state.nextCursor) return;
+                    if (!state.hasNextCursor || !state.nextCursor) {
+                        return;
+                    }
                     state.cursorStack.push(state.cursor || '');
                     state.cursor = state.nextCursor;
                     state.nextCursor = '';
                     state.hasNextCursor = false;
                     runSearch(null);
-                } else if (getProvider(state.providerId)?.id === 'hartsy') {
-                    if (!state.hasMore) return;
+                }
+                else if (getProvider(state.providerId)?.id === 'hartsy') {
+                    if (!state.hasMore) {
+                        return;
+                    }
                     runSearch(state.page + 1);
-                } else {
+                }
+                else {
                     runSearch(Math.min(state.totalPages, state.page + 1));
                 }
             };

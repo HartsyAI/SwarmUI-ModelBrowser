@@ -1,10 +1,10 @@
+using Hartsy.Extensions.Downloads;
+using Hartsy.Extensions.Providers;
 using Newtonsoft.Json.Linq;
 using SwarmUI.Accounts;
 using SwarmUI.Core;
 using SwarmUI.Text2Image;
 using SwarmUI.WebAPI;
-using Hartsy.Extensions.Downloads;
-using Hartsy.Extensions.Providers;
 
 namespace Hartsy.Extensions;
 

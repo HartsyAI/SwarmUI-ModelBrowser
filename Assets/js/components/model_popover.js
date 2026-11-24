@@ -21,12 +21,10 @@
         const provider = getProvider(providerId);
         const utils = window.ModelBrowser && window.ModelBrowser.Utils;
         const sel = selection || item;
-
         const popoverId = `model-browser-model-${renderId}`;
         // model-browser-model-popover caps height so a long menu stays on screen. Core's sui_popover_scrollable_tall
         // is not used because its min-width: 100% stretches a fixed-position popover across the whole viewport.
         const menuDiv = createDiv(`popover_${popoverId}`, 'sui-popover sui_popover_model model-browser-model-popover');
-
         const btnDownload = document.createElement('div');
         btnDownload.className = 'sui_popover_model_button';
         btnDownload.innerText = translate('Download');
@@ -34,16 +32,15 @@
             const merged = Object.assign({}, item, sel);
             if (provider && provider.handleDownload) {
                 provider.handleDownload(merged);
-            } else if (utils) {
+            }
+            else if (utils) {
                 utils.loadUrlIntoManualDownloader(sel.downloadUrl || sel.openUrl);
             }
         };
         menuDiv.appendChild(btnDownload);
-
         if (provider && typeof provider.getPopoverExtras === 'function') {
             provider.getPopoverExtras(item, menuDiv, selection);
         }
-
         if (sel.openUrl) {
             const btnOpen = document.createElement('div');
             btnOpen.className = 'sui_popover_model_button';
@@ -66,23 +63,33 @@
             menuDiv.appendChild(btn);
         };
 
-        if (sel.openUrl) addCopy('Copy Model Link', () => sel.openUrl);
-        if (sel.downloadUrl) addCopy('Copy Download Link', () => sel.downloadUrl);
+        if (sel.openUrl) {
+            addCopy('Copy Model Link', () => sel.openUrl);
+        }
+        if (sel.downloadUrl) {
+            addCopy('Copy Download Link', () => sel.downloadUrl);
+        }
         if (item.torrent && item.torrent.magnetLink) {
             addCopy('Copy Magnet Link', item.torrent.magnetLink);
         }
-        if (item.modelId) addCopy('Copy Model ID', `${item.modelId}`);
-        if (sel.modelVersionId) addCopy('Copy Version ID', () => `${sel.modelVersionId}`);
-        if (sel.fileName) addCopy('Copy Filename', () => sel.fileName);
-        if (sel.fileSize) addCopy('Copy File Size (bytes)', () => `${sel.fileSize}`);
-
+        if (item.modelId) {
+            addCopy('Copy Model ID', `${item.modelId}`);
+        }
+        if (sel.modelVersionId) {
+            addCopy('Copy Version ID', () => `${sel.modelVersionId}`);
+        }
+        if (sel.fileName) {
+            addCopy('Copy Filename', () => sel.fileName);
+        }
+        if (sel.fileSize) {
+            addCopy('Copy File Size (bytes)', () => `${sel.fileSize}`);
+        }
         const menuBtn = createDiv(null, 'model-block-menu-button');
         menuBtn.innerHTML = '&#x2630;';
         menuBtn.addEventListener('click', () => {
             doPopover(popoverId);
         });
         cardDiv.appendChild(menuBtn);
-
         return menuDiv;
     }
 

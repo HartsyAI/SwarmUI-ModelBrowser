@@ -22,6 +22,7 @@ public class HartsyProvider : IModelBrowserProvider
     public const string SiteOrigin = "https://hartsy.ai";
     public static readonly ProviderCache SearchCache = new(TimeSpan.FromSeconds(60));
     public static readonly ProviderCache FilterCache = new(TimeSpan.FromMinutes(5));
+    public static readonly ProviderCache DetailsCache = new(TimeSpan.FromMinutes(5));
     public static readonly SemaphoreSlim RateLimiter = new(3, 3);
     public static readonly HashSet<string> AllowedSorts = ["created_at", "updated_at", "title", "downloads"];
 
@@ -207,7 +208,6 @@ public class HartsyProvider : IModelBrowserProvider
                 }
                 results.Add(resultItem);
             }
-
             JObject result = new()
             {
                 ["success"] = true,
@@ -296,8 +296,6 @@ public class HartsyProvider : IModelBrowserProvider
             RateLimiter.Release();
         }
     }
-
-    public static readonly ProviderCache DetailsCache = new(TimeSpan.FromMinutes(5));
 
     /// <summary>Fetches full details for a single Hartsy model. Unlike <see cref="GetModelDownloadAsync"/> it records no
     /// download event, so it is safe to cache and to call for a preview.</summary>

@@ -108,7 +108,7 @@ public static class ModelResultBuilder
         string image = "";
         if (bestVersion?["images"] is JArray imgs)
         {
-            image = imgs.OfType<JObject>().FirstOrDefault(i => (i.Value<string>("type") ?? "") == "image") ?.Value<string>("url") ?? "";
+            image = imgs.OfType<JObject>().FirstOrDefault(i => (i.Value<string>("type") ?? "") == "image")?.Value<string>("url") ?? "";
         }
         JArray downloadOptions = [];
         if (model["modelVersions"] is JArray allVersions)

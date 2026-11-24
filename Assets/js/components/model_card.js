@@ -17,13 +17,17 @@
         let formatHolder = null;
 
         const resetFormatControl = () => {
-            if (!formatHolder) return;
+            if (!formatHolder) {
+                return;
+            }
             formatHolder.innerHTML = '';
             const toggle = document.createElement('span');
             toggle.className = 'basic-button model-browser-smallbtn model-browser-model-format-toggle';
             toggle.textContent = translate('More formats');
             toggle.onclick = async () => {
-                if (toggle.dataset.loading === 'true') return;
+                if (toggle.dataset.loading === 'true') {
+                    return;
+                }
                 toggle.dataset.loading = 'true';
                 toggle.textContent = translate('Loading...');
                 try {
@@ -52,7 +56,9 @@
                     selection.modelVersionId = defaultFormat.modelVersionId !== undefined ? defaultFormat.modelVersionId : selection.modelVersionId;
                     formatSelect.onchange = () => {
                         const chosen = formats.find(f => f.value === formatSelect.value);
-                        if (!chosen) return;
+                        if (!chosen) {
+                            return;
+                        }
                         selection.downloadUrl = chosen.downloadUrl || chosen.value;
                         selection.fileName = chosen.fileName || selection.fileName;
                         selection.fileSize = chosen.fileSize || selection.fileSize;
@@ -62,7 +68,8 @@
                     formatHolder.innerHTML = '';
                     formatHolder.appendChild(formatSelect);
                     applySelectionToDom();
-                } catch (e) {
+                }
+                catch (e) {
                     console.warn('[ModelBrowser] Failed to load format options:', e);
                     toggle.textContent = translate('Failed to load formats');
                 }
@@ -92,7 +99,9 @@
             });
             primarySelect.onchange = () => {
                 const chosen = primaryOptions.find(o => o.value === primarySelect.value);
-                if (!chosen) return;
+                if (!chosen) {
+                    return;
+                }
                 Object.assign(selection, {
                     downloadUrl: chosen.downloadUrl || chosen.value,
                     openUrl: chosen.openUrl || selection.openUrl,
@@ -105,7 +114,6 @@
             };
             variantRow.appendChild(primarySelect);
         }
-
         if (typeof provider.getSecondaryOptionsLazy === 'function' && (primaryOptions.length > 0 || item.modelVersionId)) {
             formatHolder = document.createElement('span');
             formatHolder.className = 'model-browser-model-format-holder';
@@ -125,25 +133,20 @@
         const renderId = cardRenderId;
         const provider = getProvider(providerId);
         const utils = window.ModelBrowser && window.ModelBrowser.Utils;
-
         const div = document.createElement('div');
         div.className = 'model-block model-block-hoverable model-browser-model-card';
-
         const img = document.createElement('img');
         img.classList.add('translate');
         img.dataset.renderId = `${renderId}`;
         img.src = item.image || 'imgs/model_placeholder.jpg';
         img.title = 'Click to load into Manual Download';
         div.appendChild(img);
-
         if (providerId === 'huggingface' && provider && provider.loadCardImage
             && item.modelId && (!item.image || `${item.image}`.startsWith('imgs/'))) {
             provider.loadCardImage(img, item.modelId, renderId);
         }
-
         const textBlock = document.createElement('div');
         textBlock.className = 'model-descblock';
-
         const downloadsStr = typeof item.downloads === 'number' ? `${item.downloads}` : '';
         const baseStr = item.baseModel ? `${escapeHtml(item.baseModel)}` : '';
         const creatorStr = item.creator ? `${escapeHtml(item.creator)}` : '';
@@ -158,14 +161,12 @@
         const badgesHtml = badges.length > 0
             ? `<div class="model-browser-model-badges">${badges.map(b => `<span class="model-browser-model-badge model-browser-model-badge-${escapeHtml(b.kind || 'info')}">${escapeHtml(b.label || '')}</span>`).join('')}</div>`
             : '';
-
         const actionsHtml = `
             <div class="model-browser-model-actions">
                 <button type="button" class="basic-button model-browser-smallbtn model-browser-model-download"><span class="translate">Download</span></button>
                 ${openUrl ? `<a class="basic-button model-browser-smallbtn model-browser-model-open" href="${openUrl}" target="_blank" rel="noreferrer"><span class="translate">Open</span></a>` : ''}
             </div>
         `;
-
         textBlock.innerHTML = `
             <b>${escapeHtml(item.name || '')}</b>
             ${item.versionName ? `<br>${escapeHtml(item.versionName)}` : ''}
@@ -176,7 +177,6 @@
             ${actionsHtml}
         `;
         div.appendChild(textBlock);
-
         // selection tracks the currently picked version/format; the card and popover both read/write it.
         const selection = {
             downloadUrl: bestDownloadUrl,
@@ -185,40 +185,40 @@
             fileSize: item.fileSize || null,
             modelVersionId: item.modelVersionId
         };
-
         const openLink = textBlock.querySelector('.model-browser-model-open');
         const applySelectionToDom = () => {
-            if (openLink) openLink.href = selection.openUrl || '';
+            if (openLink) {
+                openLink.href = selection.openUrl || '';
+            }
         };
 
         const variantRow = textBlock.querySelector('.model-browser-model-variant-row');
         if (variantRow && provider) {
             buildVariantRow(variantRow, item, provider, selection, applySelectionToDom);
         }
-
         img.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
             const merged = Object.assign({}, item, selection);
             if (provider && provider.handleCardClick) {
                 provider.handleCardClick(merged);
-            } else if (utils) {
+            }
+            else if (utils) {
                 utils.loadUrlIntoManualDownloader(selection.downloadUrl || selection.openUrl);
             }
         });
-
         const downloadBtn = textBlock.querySelector('.model-browser-model-download');
         if (downloadBtn) {
             downloadBtn.onclick = () => {
                 const merged = Object.assign({}, item, selection);
                 if (provider && provider.handleDownload) {
                     provider.handleDownload(merged);
-                } else if (utils) {
+                }
+                else if (utils) {
                     utils.loadUrlIntoManualDownloader(selection.downloadUrl || selection.openUrl);
                 }
             };
         }
-
         return { card: div, renderId, selection };
     }
 

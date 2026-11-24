@@ -456,7 +456,6 @@ public static class DownloadManager
             // Persist the resume validators now, so a crash before the first throttled save still resumes with If-Range.
             rec.UpdatedAtMs = NowMs();
             SaveRecord(rec);
-
             long lastPersistMs = Environment.TickCount64;
             long lastSpeedSampleMs = Environment.TickCount64;
             long bytesAtLastSample = rec.DownloadedBytes;
