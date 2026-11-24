@@ -40,6 +40,9 @@
         { value: 'Day', label: 'Past Day' }
     ];
 
+    /** Counts Download clicks, so only the latest one loads once its pre-flight check returns. */
+    let latestDownloadRequest = 0;
+
     window.ModelBrowser.Providers.civitai = {
         id: 'civitai',
         displayName: 'CivitAI',
@@ -195,7 +198,14 @@
         handleDownload: async function (item) {
             const utils = window.ModelBrowser && window.ModelBrowser.Utils;
             const bestUrl = item.downloadUrl || item.openUrl || '';
+            const request = ++latestDownloadRequest;
+            const currentUrl = () => window.modelDownloader && modelDownloader.url ? modelDownloader.url.value : '';
+            const urlBefore = currentUrl();
             const check = await this.preflightCheck(item);
+            // A newer click, or another card loaded while the check ran, wins over this older click.
+            if (request !== latestDownloadRequest || currentUrl() !== urlBefore) {
+                return;
+            }
             if (check && check.success) {
                 const warnings = [];
                 if (check.inEarlyAccess && check.earlyAccessEndsAt) {
@@ -281,7 +291,14 @@
                 triggerBtn.innerText = translate('Copy Trigger Words');
                 triggerBtn.onclick = () => {
                     const words = pickedWords();
-                    if (words.length > 0 && typeof copyText === 'function') {
+                    if (words.length === 0) {
+                        triggerBtn.innerText = translate('No trigger words for this version');
+                        setTimeout(() => {
+                            triggerBtn.innerText = translate('Copy Trigger Words');
+                        }, 2000);
+                        return;
+                    }
+                    if (typeof copyText === 'function') {
                         copyText(words.join(', '));
                     }
                 };
