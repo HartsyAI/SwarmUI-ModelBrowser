@@ -361,12 +361,13 @@ public class CivitAIProvider : IModelBrowserProvider
         {
             return new JObject() { ["success"] = false, ["error"] = "Model version ID is required." };
         }
-        string cacheKey = $"mini:{modelVersionId}";
+        string apiKey = session.User.GetGenericData("civitai_api", "key");
+        // The result carries the caller's hasApiKey and access, so each user and key state gets its own entry.
+        string cacheKey = $"mini:{session.User.UserID}:{!string.IsNullOrEmpty(apiKey)}:{modelVersionId}";
         if (VersionCache.TryGet(cacheKey, out JObject cached))
         {
             return cached;
         }
-        string apiKey = session.User.GetGenericData("civitai_api", "key");
         string url = $"https://{SfwHost}/api/v1/model-versions/mini/{modelVersionId}";
         JObject data = await FetchJsonAsync(url, $"CivitAI mini check {modelVersionId}", apiKey);
         if (data.ContainsKey("error"))

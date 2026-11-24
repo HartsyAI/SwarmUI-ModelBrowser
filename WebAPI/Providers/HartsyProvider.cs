@@ -305,12 +305,13 @@ public class HartsyProvider : IModelBrowserProvider
         {
             return new JObject() { ["success"] = false, ["error"] = "Model ID is required." };
         }
-        string cacheKey = $"hartsy:details:{modelId}";
+        string apiKey = GetApiKey(session);
+        // The answer depends on the caller's account: a file it cannot download comes back without a link.
+        string cacheKey = $"hartsy:details:{session.User.UserID}:{!string.IsNullOrEmpty(apiKey)}:{modelId}";
         if (DetailsCache.TryGet(cacheKey, out JObject cached))
         {
             return cached;
         }
-        string apiKey = GetApiKey(session);
         string url = $"{BaseUrl}/models/{Uri.EscapeDataString(modelId)}";
         await RateLimiter.WaitAsync();
         try
