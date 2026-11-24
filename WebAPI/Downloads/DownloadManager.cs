@@ -34,6 +34,9 @@ public static class DownloadManager
 
     private const int ReadBufferSize = 256 * 1024;
 
+    /// <summary>Held while Start or Resume checks a download's state and claims it, so two requests never start two transfers into one file.</summary>
+    private static readonly object StartLock = new();
+
     /// <summary>Redirects one download may take before it is refused.</summary>
     private const int MaxDownloadRedirects = 10;
 
@@ -245,11 +248,6 @@ public static class DownloadManager
         {
             return new JObject() { ["error"] = $"A model already exists at '{outPath}' - rename it or choose a different destination." };
         }
-        // A finished download whose file is gone from disk must not block a new one. A finished file still on disk is refused above.
-        if (Records.Values.Any(r => r.UserId == session.User.UserID && r.State != DownloadState.Completed && string.Equals(r.OutPath, outPath, StringComparison.OrdinalIgnoreCase)))
-        {
-            return new JObject() { ["error"] = $"A download to '{outPath}' already exists - resume or clear it from the Downloads panel first." };
-        }
         // SwarmUI shows a sidecar thumbnail only as a data URI and ignores a plain URL, so only a data URI is written. A URL
         // would also replace the thumbnail the sidecar already carries.
         if (image is not null && image.StartsWith("data:image/") && !string.IsNullOrWhiteSpace(metadata))
@@ -265,7 +263,6 @@ public static class DownloadManager
                 Logs.Debug($"[ModelBrowser] failed to inject thumbnail into metadata for '{name}': {ex.ReadableString()}");
             }
         }
-        Directory.CreateDirectory(Path.GetDirectoryName(outPath));
         long nowMs = NowMs();
         DownloadRecord rec = new()
         {
@@ -283,7 +280,19 @@ public static class DownloadManager
             CreatedAtMs = nowMs,
             UpdatedAtMs = nowMs
         };
-        Records[rec.Id] = rec;
+        lock (StartLock)
+        {
+            // Any user's unfinished download to this path owns the part file beside it. A finished one whose file is gone does not
+            // block, and a finished file still on disk is refused above.
+            DownloadRecord existing = Records.Values.FirstOrDefault(r => r.State != DownloadState.Completed && string.Equals(r.OutPath, outPath, StringComparison.OrdinalIgnoreCase));
+            if (existing is not null)
+            {
+                string message = existing.UserId == session.User.UserID ? $"A download to '{outPath}' already exists - resume or clear it from the Downloads panel first." : $"Another user is already downloading to '{outPath}'.";
+                return new JObject() { ["error"] = message };
+            }
+            Records[rec.Id] = rec;
+        }
+        Directory.CreateDirectory(Path.GetDirectoryName(outPath));
         SaveRecord(rec);
         Kick(rec, session);
         return new JObject() { ["success"] = true, ["download"] = rec.ToNetObject() };
@@ -296,15 +305,26 @@ public static class DownloadManager
         {
             return error;
         }
-        if (rec.State == DownloadState.Downloading)
+        if (File.Exists(rec.OutPath) && rec.State != DownloadState.Completed)
         {
-            return new JObject() { ["success"] = true, ["download"] = rec.ToNetObject() };
+            return new JObject() { ["error"] = $"A model already exists at '{rec.OutPath}' - move it, or clear this download." };
         }
-        if (rec.State == DownloadState.Completed)
+        lock (StartLock)
         {
-            return new JObject() { ["error"] = "This download already completed." };
+            if (rec.State == DownloadState.Downloading)
+            {
+                return new JObject() { ["success"] = true, ["download"] = rec.ToNetObject() };
+            }
+            if (rec.State == DownloadState.Completed)
+            {
+                return new JObject() { ["error"] = "This download already completed." };
+            }
+            if (Records.Values.Any(r => r != rec && r.State == DownloadState.Downloading && string.Equals(r.OutPath, rec.OutPath, StringComparison.OrdinalIgnoreCase)))
+            {
+                return new JObject() { ["error"] = $"Another download to '{rec.OutPath}' is running." };
+            }
+            rec.State = DownloadState.Downloading;
         }
-        rec.State = DownloadState.Downloading;
         rec.ErrorMessage = null;
         rec.TransientNote = null;
         rec.UpdatedAtMs = NowMs();
