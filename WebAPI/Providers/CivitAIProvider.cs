@@ -446,6 +446,8 @@ public class CivitAIProvider : IModelBrowserProvider
             return data;
         }
         JArray rawFiles = data["files"] as JArray ?? [];
+        // The card defaults to this file, so the format picker marks the same one as primary.
+        JObject best = ModelResultBuilder.SelectBestFile(rawFiles);
         JArray files = [];
         foreach (JObject f in rawFiles.OfType<JObject>())
         {
@@ -468,7 +470,7 @@ public class CivitAIProvider : IModelBrowserProvider
                 ["format"] = meta?.Value<string>("format") ?? "",
                 ["precision"] = meta?.Value<string>("fp") ?? "",
                 ["sizeLabel"] = meta?.Value<string>("size") ?? "",
-                ["primary"] = f.Value<bool?>("primary") ?? false
+                ["primary"] = ReferenceEquals(f, best)
             });
         }
         JObject result = new()

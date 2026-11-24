@@ -59,21 +59,26 @@ public class ProviderCache(TimeSpan ttl)
 /// <summary>Builds normalized model result JObjects from provider-specific data.</summary>
 public static class ModelResultBuilder
 {
-    /// <summary>Picks a CivitAI version's primary file if core can download it, else its first .safetensors, .sft or .gguf file,
-    /// else its first file.</summary>
+    /// <summary>Whether core would download this CivitAI file as the model: .safetensors, .sft or .gguf, and not a bundled VAE or
+    /// text encoder, which core skips.</summary>
+    public static bool IsModelCandidate(JObject file)
+    {
+        string fname = file.Value<string>("name") ?? "";
+        string type = file.Value<string>("type") ?? "";
+        bool loadable = fname.EndsWith(".safetensors", StringComparison.OrdinalIgnoreCase) || fname.EndsWith(".sft", StringComparison.OrdinalIgnoreCase) || fname.EndsWith(".gguf", StringComparison.OrdinalIgnoreCase);
+        return loadable && type != "VAE" && type != "Text Encoder";
+    }
+
+    /// <summary>Picks a CivitAI version's primary file if it is a <see cref="IsModelCandidate"/>, else its first such file, else its
+    /// first file.</summary>
     public static JObject SelectBestFile(JArray files)
     {
         if (files is null || files.Count == 0)
         {
             return null;
         }
-        static bool IsDownloadable(JObject f)
-        {
-            string fname = f.Value<string>("name") ?? "";
-            return fname.EndsWith(".safetensors", StringComparison.OrdinalIgnoreCase) || fname.EndsWith(".sft", StringComparison.OrdinalIgnoreCase) || fname.EndsWith(".gguf", StringComparison.OrdinalIgnoreCase);
-        }
-        return files.OfType<JObject>().FirstOrDefault(f => f.Value<bool?>("primary") == true && IsDownloadable(f))
-            ?? files.OfType<JObject>().FirstOrDefault(IsDownloadable)
+        return files.OfType<JObject>().FirstOrDefault(f => f.Value<bool?>("primary") == true && IsModelCandidate(f))
+            ?? files.OfType<JObject>().FirstOrDefault(IsModelCandidate)
             ?? files.OfType<JObject>().FirstOrDefault();
     }
 
