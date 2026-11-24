@@ -354,15 +354,15 @@ public static class DownloadManager
             {
                 return new JObject() { ["success"] = true, ["download"] = rec.ToNetObject() };
             }
+            if (rec.State == DownloadState.Completed)
+            {
+                return new JObject() { ["error"] = "This download already completed." };
+            }
             // Only one of two transfers to a path can be moved into place, and records from before per-download part files
             // can share one, so wait for any other running download to this path.
             if (Records.Values.Any(r => r != rec && r.State == DownloadState.Downloading && string.Equals(r.OutPath, rec.OutPath, StringComparison.OrdinalIgnoreCase)))
             {
                 return new JObject() { ["error"] = $"Another download to '{rec.OutPath}' is running. Try again once it finishes." };
-            }
-            if (rec.State == DownloadState.Completed)
-            {
-                return new JObject() { ["error"] = "This download already completed." };
             }
             rec.State = DownloadState.Downloading;
         }
