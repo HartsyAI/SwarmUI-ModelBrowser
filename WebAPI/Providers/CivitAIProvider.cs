@@ -4,6 +4,7 @@ using SwarmUI.Core;
 using SwarmUI.Utils;
 using SwarmUI.WebAPI;
 using System.Collections.Specialized;
+using System.Globalization;
 using System.IO;
 using System.Net.Http;
 using System.Web;
@@ -376,7 +377,7 @@ public class CivitAIProvider : IModelBrowserProvider
         }
         string earlyAccessEndsAt = data.Value<string>("earlyAccessEndsAt") ?? "";
         bool inEarlyAccess = false;
-        if (!string.IsNullOrWhiteSpace(earlyAccessEndsAt) && DateTime.TryParse(earlyAccessEndsAt, out DateTime endsDt) && endsDt > DateTime.UtcNow)
+        if (!string.IsNullOrWhiteSpace(earlyAccessEndsAt) && DateTimeOffset.TryParse(earlyAccessEndsAt, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out DateTimeOffset endsAt) && endsAt > DateTimeOffset.UtcNow)
         {
             inEarlyAccess = true;
         }
