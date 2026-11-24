@@ -375,7 +375,7 @@ public class CivitAIProvider : IModelBrowserProvider
         {
             return data;
         }
-        string earlyAccessEndsAt = data.Value<string>("earlyAccessEndsAt") ?? "";
+        string earlyAccessEndsAt = ModelResultBuilder.ReadUtcTimestamp(data["earlyAccessEndsAt"]);
         bool inEarlyAccess = false;
         if (!string.IsNullOrWhiteSpace(earlyAccessEndsAt) && DateTimeOffset.TryParse(earlyAccessEndsAt, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out DateTimeOffset endsAt) && endsAt > DateTimeOffset.UtcNow)
         {

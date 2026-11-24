@@ -1,6 +1,7 @@
 using Newtonsoft.Json.Linq;
 using SwarmUI.Backends;
 using System.Collections.Concurrent;
+using System.Globalization;
 using System.IO;
 using System.Net.Http;
 using System.Web;
@@ -76,6 +77,25 @@ public static class ModelResultBuilder
             ?? files.OfType<JObject>().FirstOrDefault();
     }
 
+    /// <summary>Reads a CivitAI timestamp as ISO 8601 UTC, or "" when there is none. JObject.Parse turns an ISO string into a date
+    /// that reads back without its zone, which a browser would then take as local time.</summary>
+    public static string ReadUtcTimestamp(JToken token)
+    {
+        if (token is null || token.Type == JTokenType.Null)
+        {
+            return "";
+        }
+        if (token.Type == JTokenType.Date)
+        {
+            DateTime value = token.Value<DateTime>();
+            DateTime utc = value.Kind == DateTimeKind.Unspecified ? DateTime.SpecifyKind(value, DateTimeKind.Utc) : value.ToUniversalTime();
+            return utc.ToString("o", CultureInfo.InvariantCulture);
+        }
+        string text = token.Value<string>() ?? "";
+        return DateTimeOffset.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out DateTimeOffset parsed)
+            ? parsed.UtcDateTime.ToString("o", CultureInfo.InvariantCulture) : "";
+    }
+
     /// <summary>Build a normalized model result from a CivitAI model object and its best version.</summary>
     public static JObject FromCivitAI(JObject model, JObject bestVersion, long modelIdOverride = 0)
     {
@@ -95,7 +115,7 @@ public static class ModelResultBuilder
         long modelVersionId = bestVersion?.Value<long?>("id") ?? 0;
         string versionName = bestVersion?.Value<string>("name") ?? "";
         string versionBaseModel = bestVersion?.Value<string>("baseModel") ?? "";
-        string earlyAccessEndsAt = bestVersion?.Value<string>("earlyAccessEndsAt") ?? "";
+        string earlyAccessEndsAt = ReadUtcTimestamp(bestVersion?["earlyAccessEndsAt"]);
         string air = bestVersion?.Value<string>("air") ?? "";
         JArray trainedWords = bestVersion?["trainedWords"] as JArray ?? [];
         JArray versionFiles = bestVersion?["files"] as JArray ?? [];
@@ -133,7 +153,7 @@ public static class ModelResultBuilder
                     ["fileName"] = vFile.Value<string>("name") ?? "",
                     ["downloadUrl"] = vUrl,
                     ["fileSize"] = vFile.Value<long?>("sizeKB") is long vKb ? (JToken)(vKb * 1024) : null,
-                    ["earlyAccessEndsAt"] = ver.Value<string>("earlyAccessEndsAt") ?? "",
+                    ["earlyAccessEndsAt"] = ReadUtcTimestamp(ver["earlyAccessEndsAt"]),
                     ["air"] = ver.Value<string>("air") ?? "",
                     ["trainedWords"] = ver["trainedWords"] as JArray ?? []
                 });
