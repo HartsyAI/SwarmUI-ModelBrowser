@@ -399,7 +399,7 @@ public static class DownloadManager
         if (isResume)
         {
             request.Headers.Range = new RangeHeaderValue(rec.DownloadedBytes, null);
-            string ifRange = rec.ETag ?? rec.LastModified;
+            string ifRange = string.IsNullOrEmpty(rec.ETag) ? rec.LastModified : rec.ETag;
             if (!string.IsNullOrEmpty(ifRange))
             {
                 request.Headers.TryAddWithoutValidation("If-Range", ifRange);
