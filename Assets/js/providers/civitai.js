@@ -199,11 +199,10 @@
             const utils = window.ModelBrowser && window.ModelBrowser.Utils;
             const bestUrl = item.downloadUrl || item.openUrl || '';
             const request = ++latestDownloadRequest;
-            const currentUrl = () => window.modelDownloader && modelDownloader.url ? modelDownloader.url.value : '';
-            const urlBefore = currentUrl();
+            const loadsBefore = utils ? utils.urlLoads : 0;
             const check = await this.preflightCheck(item);
-            // A newer click, or another card loaded while the check ran, wins over this older click.
-            if (request !== latestDownloadRequest || currentUrl() !== urlBefore) {
+            // A newer click, or a URL loaded into the downloader while the check ran, wins over this older click.
+            if (request !== latestDownloadRequest || (utils && utils.urlLoads !== loadsBefore)) {
                 return;
             }
             if (check && check.success) {

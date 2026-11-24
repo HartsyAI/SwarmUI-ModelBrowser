@@ -338,6 +338,9 @@
         let requestToken = 0;
         const wrapped = () => {
             const myToken = ++requestToken;
+            if (window.ModelBrowser && window.ModelBrowser.Utils) {
+                window.ModelBrowser.Utils.urlLoads++;
+            }
             const modelId = extractHartsyModelId(modelDownloader.url.value);
             if (!modelId) {
                 origUrlInput();
