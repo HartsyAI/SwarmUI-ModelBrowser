@@ -1,4 +1,5 @@
 using Newtonsoft.Json.Linq;
+using SwarmUI.Accounts;
 using SwarmUI.Backends;
 using System.Collections.Concurrent;
 using System.Globalization;
@@ -12,6 +13,17 @@ namespace Hartsy.Extensions.Providers;
 public static class ProviderHttpClient
 {
     public static readonly HttpClient Client = NetworkBackendUtils.MakeHttpClient();
+}
+
+/// <summary>Builds the part of a provider cache key that names whose answer it is.</summary>
+public static class ProviderCacheOwner
+{
+    /// <summary>"anon" for a request without a key, whose answer is the same for everyone; otherwise the user and their current
+    /// key, so a replaced key does not keep the old key's answer.</summary>
+    public static string For(Session session, string apiKey)
+    {
+        return string.IsNullOrEmpty(apiKey) ? "anon" : $"{session.User.UserID}:{apiKey.GetHashCode()}";
+    }
 }
 
 /// <summary>Simple TTL-based cache backed by a <see cref="ConcurrentDictionary{TKey,TValue}"/>.</summary>

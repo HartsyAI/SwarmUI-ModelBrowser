@@ -307,7 +307,7 @@ public class HartsyProvider : IModelBrowserProvider
         }
         string apiKey = GetApiKey(session);
         // The answer depends on the caller's account: a file it cannot download comes back without a link.
-        string cacheKey = $"hartsy:details:{session.User.UserID}:{!string.IsNullOrEmpty(apiKey)}:{modelId}";
+        string cacheKey = $"hartsy:details:{ProviderCacheOwner.For(session, apiKey)}:{modelId}";
         if (DetailsCache.TryGet(cacheKey, out JObject cached))
         {
             return cached;

@@ -304,7 +304,7 @@ public class CivitAIProvider : IModelBrowserProvider
         }
         limit = Math.Clamp(limit, 1, 50);
         string apiKey = session.User.GetGenericData("civitai_api", "key");
-        string cacheKey = $"images:{session.User.UserID}:{!string.IsNullOrEmpty(apiKey)}:{modelVersionId}:{limit}:{includeNsfw}";
+        string cacheKey = $"images:{ProviderCacheOwner.For(session, apiKey)}:{modelVersionId}:{limit}:{includeNsfw}";
         if (ImagesCache.TryGet(cacheKey, out JObject cached))
         {
             return cached;
@@ -363,8 +363,8 @@ public class CivitAIProvider : IModelBrowserProvider
             return new JObject() { ["success"] = false, ["error"] = "Model version ID is required." };
         }
         string apiKey = session.User.GetGenericData("civitai_api", "key");
-        // The result carries the caller's hasApiKey and access, so each user and key state gets its own entry.
-        string cacheKey = $"mini:{session.User.UserID}:{!string.IsNullOrEmpty(apiKey)}:{modelVersionId}";
+        // The result carries the caller's hasApiKey and access, so each key gets its own entry.
+        string cacheKey = $"mini:{ProviderCacheOwner.For(session, apiKey)}:{modelVersionId}";
         if (VersionCache.TryGet(cacheKey, out JObject cached))
         {
             return cached;
@@ -434,7 +434,7 @@ public class CivitAIProvider : IModelBrowserProvider
             return new JObject() { ["success"] = false, ["error"] = "Model version ID is required." };
         }
         string apiKey = session.User.GetGenericData("civitai_api", "key");
-        string cacheKey = $"versionfiles:{session.User.UserID}:{!string.IsNullOrEmpty(apiKey)}:{modelVersionId}";
+        string cacheKey = $"versionfiles:{ProviderCacheOwner.For(session, apiKey)}:{modelVersionId}";
         if (VersionFilesCache.TryGet(cacheKey, out JObject cached))
         {
             return cached;
