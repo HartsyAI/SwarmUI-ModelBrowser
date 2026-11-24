@@ -12,23 +12,18 @@ using System.Net.Http.Headers;
 
 namespace Hartsy.Extensions.Downloads;
 
-/// <summary>Owns every model download: starting, pausing (Cancel keeps the partial file), resuming via HTTP Range,
-/// and clearing. Download tasks run independently of any single request/connection - a page reload or closed tab
-/// does not stop a download in progress, and progress + resume state survive a full server restart via records
-/// persisted in SwarmUI's own user database (the same LiteDB-backed generic-data store this extension already
-/// uses for provider API keys - see <see cref="SaveRecord"/>). This intentionally does not reuse core's
-/// `Utilities.DownloadFile`: that helper deletes the partial file on cancel or failure by design, which is the
-/// opposite of what resuming needs.</summary>
+/// <summary>Owns every model download: start, pause (Cancel keeps the partial file), resume via HTTP Range, and clear.
+/// Downloads run detached from any request, and their records live in the user database, so they survive a page reload
+/// or a server restart. Core's `Utilities.DownloadFile` is not reused because it deletes the partial file on cancel or failure.</summary>
 public static class DownloadManager
 {
-    /// <summary>All known downloads, keyed by ID. Source of truth in memory; <see cref="SaveRecord"/> mirrors each change to the database.</summary>
+    /// <summary>All known downloads by ID; <see cref="SaveRecord"/> mirrors each change to the database.</summary>
     private static readonly ConcurrentDictionary<string, DownloadRecord> Records = new();
 
-    /// <summary>The generic-data "dataname" this extension's download records are filed under in each user's
-    /// LiteDB-backed store - the same mechanism <c>session.User.GetGenericData("civitai_api", "key")</c> uses.</summary>
+    /// <summary>Generic-data name the download records are filed under in each user's store.</summary>
     private const string GenericDataName = "model_browser_download";
 
-    /// <summary>Completed downloads older than this are dropped from the database at startup so it doesn't grow forever.</summary>
+    /// <summary>Completed downloads older than this are dropped from the database at startup.</summary>
     private static readonly long CompletedRetentionMs = TimeSpan.FromDays(7).Ticks / TimeSpan.TicksPerMillisecond;
 
     /// <summary>If a read produces no data for this long, the download is treated as stalled and errors out (resumable).</summary>
@@ -99,11 +94,8 @@ public static class DownloadManager
 
     private static long NowMs() => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
-    /// <summary>Loads every stored download record from the user database. Call once during extension init.
-    /// Scans across all users directly (rather than going through each `User` instance, which requires already
-    /// knowing which users exist) since this runs before any session has logged in. Any download still marked
-    /// `Downloading` did not survive whatever stopped the process, so it's demoted to `Paused` - the partial
-    /// bytes are still on disk and remain resumable.</summary>
+    /// <summary>Loads every stored download record at extension init. No user has logged in yet, so this scans the
+    /// generic-data store directly. A record still marked `Downloading` is demoted to `Paused`; its partial file stays resumable.</summary>
     public static void Init()
     {
         string marker = $"///${GenericDataName}///";
@@ -149,19 +141,14 @@ public static class DownloadManager
             {
                 rec.State = DownloadState.Paused;
             }
-            // The stored byte count is only persisted periodically during a transfer (see
-            // ProgressPersistIntervalMs), so after a crash it can lag what's actually on disk. The part file
-            // itself is ground truth for what can be resumed from - trusting a stale lower count here would send
-            // a Range request that doesn't line up with where FileMode.Append actually continues writing.
+            // The stored count is saved only every ProgressPersistIntervalMs, so the part file decides where Append resumes.
             rec.DownloadedBytes = File.Exists(rec.PartPath) ? new FileInfo(rec.PartPath).Length : 0;
             Records[rec.Id] = rec;
-            SaveRecord(rec); // persist the demotion/reconciliation so it's accurate on the next restart too
+            SaveRecord(rec);
         }
     }
 
-    /// <summary>Upserts one download record into its owning user's LiteDB-backed generic-data store - the same
-    /// store (and the same `User.SaveGenericData` method) this extension already uses for provider API keys.
-    /// Unlike a flat JSON manifest, this only ever touches the one document that changed, not every download.</summary>
+    /// <summary>Upserts one download record into its owning user's generic-data store.</summary>
     private static void SaveRecord(DownloadRecord rec)
     {
         User user = Program.Sessions.GetUser(rec.UserId, makeNew: false);
@@ -173,7 +160,7 @@ public static class DownloadManager
         user.SaveGenericData(GenericDataName, rec.Id, rec.ToManifestObject().ToString());
     }
 
-    /// <summary>Removes one download record from its owning user's generic-data store, called once Clear() has confirmed it's safe to forget.</summary>
+    /// <summary>Removes one download record from its owning user's generic-data store.</summary>
     private static void RemoveRecord(string userId, string id)
     {
         Program.Sessions.GetUser(userId, makeNew: false)?.DeleteGenericData(GenericDataName, id);
@@ -213,9 +200,8 @@ public static class DownloadManager
         return (extension, folder);
     }
 
-    /// <summary>Applies per-host auth handling (Civitai token, HuggingFace bearer) and returns the hint to show if the
-    /// host refuses with an auth error. The API keys are resolved fresh from the session here and never stored on the
-    /// record, so they never end up in the on-disk manifest.</summary>
+    /// <summary>Applies per-host auth (Civitai token, Hugging Face bearer, Hartsy key) and returns the hint shown if the host
+    /// refuses. Keys come from the session each time so they never reach the stored record.</summary>
     private static (string RequestUrl, Dictionary<string, string> Headers, string AuthHint) ResolveRequest(Session session, string originalUrl)
     {
         string url = originalUrl.Split('#')[0];
@@ -237,8 +223,7 @@ public static class DownloadManager
         return (url, headers, authHint);
     }
 
-    /// <summary>Starts a brand new download. Returns `{ error }` for any validation failure (bad URL, refused model
-    /// name, unknown type, path already occupied by a finished model or another in-flight download).</summary>
+    /// <summary>Starts a new download, or returns `{ error }` for a bad URL, refused name, unknown type or occupied destination.</summary>
     public static JObject Start(Session session, string url, string type, string name, string metadata, string image)
     {
         if (string.IsNullOrWhiteSpace(url) || (!url.StartsWith("http://") && !url.StartsWith("https://")))
@@ -304,7 +289,7 @@ public static class DownloadManager
         return new JObject() { ["success"] = true, ["download"] = rec.ToNetObject() };
     }
 
-    /// <summary>Resumes a paused or errored download from its last saved byte offset. A no-op (not an error) if it's already downloading.</summary>
+    /// <summary>Resumes a paused or errored download from its saved byte offset. A no-op if it is already downloading.</summary>
     public static JObject Resume(Session session, string id)
     {
         if (!TryGetOwned(session, id, out DownloadRecord rec, out JObject error))
@@ -335,9 +320,8 @@ public static class DownloadManager
         rec.PumpTask = RunDownloadAsync(rec, requestUrl, headers, authHint);
     }
 
-    /// <summary>Cancels an in-progress download, keeping the partial file for a later Resume. Awaits (briefly) for
-    /// the pump task to actually settle into `Paused`, so the response the caller gets back is accurate rather
-    /// than a stale "still downloading" read from before the cancellation took effect.</summary>
+    /// <summary>Cancels an in-progress download, keeping the partial file for a later Resume. Waits briefly for the
+    /// pump to settle so the returned state is current.</summary>
     public static async Task<JObject> CancelAsync(Session session, string id)
     {
         if (!TryGetOwned(session, id, out DownloadRecord rec, out JObject error))
@@ -357,9 +341,8 @@ public static class DownloadManager
         return new JObject() { ["success"] = true, ["download"] = rec.ToNetObject() };
     }
 
-    /// <summary>Deletes the partial file (if any) and forgets the download. Refused while actively downloading -
-    /// Cancel first, so there's never a race between an in-flight write and a delete of the same file.
-    /// For a completed download this only removes it from the list; the finished model file is never touched.</summary>
+    /// <summary>Deletes the partial file and forgets the download. Refused while downloading, so a delete never races a write.
+    /// A completed download is only removed from the list; its model file is never touched.</summary>
     public static JObject Clear(Session session, string id)
     {
         if (!TryGetOwned(session, id, out DownloadRecord rec, out JObject error))
@@ -388,9 +371,8 @@ public static class DownloadManager
         return new JObject() { ["success"] = true };
     }
 
-    /// <summary>Sends the transfer request. Hartsy refuses a key that lacks models:download even for a free model, and a free
-    /// model needs no key, so a Hartsy request the key gets refused is sent once more without it. A gated model is refused
-    /// again, and the failure says why.</summary>
+    /// <summary>Sends the transfer request. Hartsy refuses a key without models:download even for a free model, which needs
+    /// no key, so a refused Hartsy request is sent once more without it. A gated model is refused again and says why.</summary>
     private static async Task<HttpResponseMessage> SendDownloadAsync(string requestUrl, Dictionary<string, string> headers, DownloadRecord rec, bool isResume, CancellationToken token)
     {
         HttpResponseMessage response = await SendFollowingRedirectsAsync(BuildDownloadRequest(requestUrl, headers, rec, isResume), token);
@@ -426,9 +408,8 @@ public static class DownloadManager
         return request;
     }
 
-    /// <summary>The actual transfer. Resumable: if `rec.DownloadedBytes` is already positive and the part file
-    /// exists, requests a Range continuation with If-Range so a changed remote file restarts instead of splicing
-    /// mismatched bytes together. Runs detached from any specific request/connection - only `rec.Canceller` stops it.</summary>
+    /// <summary>Runs one transfer, resuming when the part file already holds bytes. Detached from any request; only
+    /// `rec.Canceller` or shutdown stops it.</summary>
     private static async Task RunDownloadAsync(DownloadRecord rec, string requestUrl, Dictionary<string, string> headers, string authHint)
     {
         CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(Program.GlobalProgramCancel, rec.Canceller.Token);
@@ -458,11 +439,7 @@ public static class DownloadManager
                 && response.Content.Headers.ContentRange.From == rec.DownloadedBytes;
             if (isResume && !serverHonoredRange)
             {
-                // Either the server ignored the Range request entirely (200, full body from byte 0), or it
-                // answered 206 for a *different* range than we asked for (a proxy/CDN quirk). Either way, blindly
-                // appending what it sent onto our existing partial would splice mismatched bytes into the file and
-                // silently corrupt the model, so start over instead - and say so, since a byte count that jumps
-                // backward with no explanation just looks like another progress bug.
+                // The server ignored the Range or answered a different one; appending would corrupt the file, so restart and say why.
                 string reason = response.StatusCode == HttpStatusCode.PartialContent ? "returned a different byte range than requested" : "did not support resuming";
                 rec.TransientNote = $"The server {reason}, so this download restarted from the beginning.";
                 Logs.Info($"[ModelBrowser] download '{rec.Name}' {reason}; restarting from scratch.");
@@ -563,9 +540,8 @@ public static class DownloadManager
         }
     }
 
-    /// <summary>Moves the finished part file into place and replicates core's post-download bookkeeping
-    /// (metadata sidecar, model handler refresh, optional resave) so a model downloaded this way is
-    /// indistinguishable from one downloaded through core's own manual downloader.</summary>
+    /// <summary>Moves the finished part file into place and repeats core's post-download steps (metadata sidecar, handler
+    /// refresh, optional resave), so the model matches one fetched by core's downloader.</summary>
     private static void FinalizeDownload(DownloadRecord rec)
     {
         File.Move(rec.PartPath, rec.OutPath, overwrite: false);

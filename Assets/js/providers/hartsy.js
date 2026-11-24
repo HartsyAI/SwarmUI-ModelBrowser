@@ -37,10 +37,8 @@
             if (!utils || !utils.genericRequestAsync) {
                 throw new Error('ModelBrowser utils not loaded');
             }
-            // Hartsy has no CivitAI-style "type" concept; checkpoint vs LoRA is distinguished by
-            // architecture (e.g. "qwen-image" vs "qwen-image/lora"), so the type filter is not folded
-            // into the tag query here - doing so (e.g. tags=checkpoint) matches nothing.
-            // The browser passes the tag box as `tag`; accept both spellings so the filter is not silently dropped.
+            // The type filter is not folded into tags: Hartsy has no type, and tags=checkpoint matches nothing.
+            // The browser sends the tag box as `tag`, so accept both spellings.
             const tags = params.tags || params.tag || '';
             return await utils.genericRequestAsync('ModelBrowserHartsySearch', {
                 query: params.query || '',
@@ -80,8 +78,7 @@
             return { architectures: [], tags: [], uploadSources: [], generateTiers: [] };
         },
 
-        // Hartsy has no type concept; a LoRA is an architecture suffix, so "every LoRA" is a comma-joined
-        // architecture list. The `lora` tag is not usable for this: base models carry it too.
+        /** Every LoRA architecture, comma-joined. Hartsy marks a LoRA by architecture suffix; its `lora` tag is on base models too. */
         loraArchitectures: function (architectures) {
             return (architectures || [])
                 .map(a => a && a.id)

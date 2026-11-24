@@ -122,10 +122,7 @@
         return card;
     }
 
-    // `translatable` must only be true for our own hardcoded generic UI vocabulary (eg sort-order labels).
-    // Provider-sourced options (model families, live API enums, format/pipeline taxonomy) must stay literal -
-    // they're technical identifiers, not prose, and running them through translate() risks mistranslating a
-    // value that's also meant to be recognized/matched elsewhere.
+    // Set `translatable` only for our own UI labels (eg sort orders); provider values are identifiers and stay literal.
     function populateSelect(selectEl, options, selectedValue, translatable = false) {
         const currentValue = selectedValue || selectEl.value;
         selectEl.innerHTML = '';
@@ -293,8 +290,7 @@
                 applyTranslations(resultsEl);
             };
 
-            // A request made while a search is running is kept and run when it finishes, not dropped. A filter change starts a search
-            // of its own, and dropping the Search click that followed it lost the query the user had just submitted.
+            // A search requested while one runs is queued, not dropped, so a Search click right after a filter change still runs.
             let queuedSearch = null;
             const runSearch = async (setPage = null) => {
                 if (state.inflight) {

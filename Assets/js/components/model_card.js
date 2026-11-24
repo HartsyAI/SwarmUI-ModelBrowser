@@ -80,8 +80,7 @@
                 optEl.textContent = opt.label;
                 primarySelect.appendChild(optEl);
             }
-            // modelVersionId is only meaningful for providers whose primary dimension is versions (CivitAI);
-            // for others (e.g. HuggingFace's primary dimension is files) the option won't carry one, so leave it alone.
+            // Only version options (CivitAI) carry a modelVersionId; file options keep the item's.
             const defaultOpt = primaryOptions.find(o => `${o.value}` === `${item.modelVersionId}`) || primaryOptions[0];
             primarySelect.value = defaultOpt.value;
             Object.assign(selection, {

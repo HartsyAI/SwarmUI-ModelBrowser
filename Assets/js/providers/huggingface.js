@@ -149,7 +149,7 @@
         getLibraryOptions: function () { return libraryOptions; },
         getSortOptions: function () { return sortOptions; },
 
-        /** File picker for the card: the repo's files are already in the search result (capped at 25), no fetch needed. */
+        /** File picker for the card: the repo's files are already in the search result, so no fetch is needed. */
         getPrimaryOptions: function (item) {
             const files = Array.isArray(item.downloadOptions) ? item.downloadOptions : [];
             return files.filter(f => f && f.downloadUrl).map(f => {
@@ -208,7 +208,7 @@
             queuePump();
         },
 
-        /** Return extra popover buttons for HuggingFace models. */
+        /** Adds a "Load all files..." button to the card menu. */
         getPopoverExtras: function (item, menuDiv) {
             const utils = window.ModelBrowser && window.ModelBrowser.Utils;
             if (!item || !item.modelId) return;

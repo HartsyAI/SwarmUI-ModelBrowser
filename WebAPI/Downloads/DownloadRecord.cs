@@ -3,13 +3,11 @@ using Newtonsoft.Json.Linq;
 
 namespace Hartsy.Extensions.Downloads;
 
-/// <summary>Lifecycle state of a single download. `Paused` and `Errored` are both resumable from their last
-/// persisted byte offset - the only difference is whether the last attempt ended via user Cancel or a failure.</summary>
+/// <summary>Lifecycle state of a download. `Paused` (cancelled) and `Errored` (failed) both resume from the saved byte offset.</summary>
 public enum DownloadState { Downloading, Paused, Errored, Completed }
 
 /// <summary>Persisted state for one model download, resumable across Cancel/Retry and server restarts.
-/// Everything needed to resume (offset, ETag, Last-Modified) is saved to the database; API keys are never
-/// persisted here and are re-resolved from the session on every Start/Resume call instead.</summary>
+/// API keys are never stored here; they are read from the session on each Start/Resume.</summary>
 public class DownloadRecord
 {
     public string Id;
@@ -31,11 +29,9 @@ public class DownloadRecord
     public long CreatedAtMs;
     public long UpdatedAtMs;
 
-    /// <summary>Bytes/sec over the last ~1s sampling window. Not persisted - meaningless once a download isn't actively running.</summary>
+    /// <summary>Bytes per second over the last ~1 s. Not persisted.</summary>
     [JsonIgnore] public double PerSecond;
-    /// <summary>One-shot, non-persisted note for the current attempt only (eg "server didn't support resuming,
-    /// restarted from scratch") - otherwise a downloaded-bytes count that jumps backward with no explanation
-    /// reads as the same kind of progress bug this was built to fix.</summary>
+    /// <summary>Note for the current attempt only, eg that the server could not resume and the download restarted. Not persisted.</summary>
     [JsonIgnore] public string TransientNote;
     /// <summary>Signals the running pump task to stop. Null unless a download is currently in flight.</summary>
     [JsonIgnore] public CancellationTokenSource Canceller;

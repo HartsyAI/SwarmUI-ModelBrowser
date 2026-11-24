@@ -148,7 +148,7 @@
             }
         },
 
-        /** Run a pre-flight check before downloading. Resolves to { ok, warning, requiresLogin, inEarlyAccess } or null on failure. */
+        /** Runs the pre-flight version check before downloading. Resolves to the ModelBrowserCivitaiVersionCheck response, or null on failure. */
         preflightCheck: async function (item) {
             const utils = window.ModelBrowser && window.ModelBrowser.Utils;
             if (!utils || !utils.genericRequestAsync) return null;

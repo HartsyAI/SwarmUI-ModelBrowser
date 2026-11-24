@@ -6,11 +6,9 @@
     const DOM_READY_TIMEOUT_MS = 15000;
     const DOM_RETRY_INTERVAL_INITIAL_MS = 100;
     const DOM_RETRY_INTERVAL_MAX_MS = 1000;
-    let downloadRoots = null;
-
-    // A fresh page's first call can be refused before SwarmUI has a session for it, and the retry then succeeds. Without retrying,
-    // the roots stay unknown for the life of the page and the destination preview is built from nothing.
+    // A fresh page's first call can be refused before SwarmUI has a session for it; a retry then succeeds.
     const DOWNLOAD_ROOTS_ATTEMPTS = 5;
+    let downloadRoots = null;
 
     async function loadDownloadRoots() {
         const utils = window.ModelBrowser && window.ModelBrowser.Utils;
@@ -297,8 +295,7 @@
         return true;
     }
 
-    // Matches both the old `hartsy.ai/models/<id>` page link and the current `hartsy.ai/Home?type=models&id=<id>` link,
-    // since users may still have the old form saved/shared. Returns the model ID, or null if not a Hartsy model link.
+    // Returns the model ID from a Hartsy `/models/<id>`, `/Home?type=models&id=<id>` or `/download/<id>` link, or null.
     function extractHartsyModelId(rawUrl) {
         let parsed;
         try {
@@ -342,9 +339,8 @@
         }
     }
 
-    // Hartsy model page links (copied from the site or pasted from "Copy Model Link") aren't direct file downloads and
-    // carry no metadata core's urlInput() can parse - resolve them through the Hartsy API instead, mirroring how core
-    // handles CivitAI links, so pasting one populates the real download URL, name, and info instead of going stale.
+    // Hartsy model links are not file downloads and carry nothing core's urlInput() can parse, so resolve them through the
+    // Hartsy API, the way core resolves CivitAI links.
     function wrapUrlInputForHartsy() {
         if (!window.modelDownloader || typeof modelDownloader.urlInput !== 'function' || modelDownloader.urlInput._modelBrowserHartsy) {
             return;
@@ -372,9 +368,7 @@
             }
             Promise.all([
                 utils.genericRequestAsync('ModelBrowserHartsyDownload', { modelId }),
-                // Details carries the preview (image/description/architecture); fetched separately since it's cacheable
-                // and doesn't record a download analytics event the way the download-info call does. Best-effort - a
-                // details failure shouldn't block resolving the actual download link below.
+                // Details carry the preview and record no download event; a failure there must not block the download link.
                 utils.genericRequestAsync('ModelBrowserHartsyModelDetails', { modelId }).catch(() => null)
             ]).then(([resp, details]) => {
                 if (myToken !== requestToken) {
@@ -607,13 +601,9 @@
         return comp.tryEmbed();
     }
 
-    // Core's ModelDownloaderUtil.run() builds an ActiveModelDownload, whose progress/resume behavior is buggy
-    // (overall_percent is a hardcoded placeholder, total size is never sent, and cancelling deletes the partial
-    // file instead of keeping it resumable - see WebAPI/Downloads/DownloadManager.cs for the replacement). Take
-    // over run() entirely rather than patching around ActiveModelDownload, the same way folder_browser_injection.js
-    // already wraps run() for its own folder sync. This runs after that wrap in the load order, so overwriting
-    // `mdl.run` here discards it - fine, since resolveSelectedFolder() (used by startFromManualDownloader) reads
-    // the same folder-browser state directly instead of depending on the hidden legacy <select> it used to sync.
+    // Core's run() builds an ActiveModelDownload, which deletes the partial file on cancel, so take run() over for the
+    // resumable server-side downloader. This replaces folder_browser_injection.js's run() wrapper, which is safe because
+    // resolveSelectedFolder() reads the folder-browser state directly.
     function tryTakeOverDownloadRun() {
         if (!window.modelDownloader || typeof modelDownloader.run !== 'function') {
             return false;

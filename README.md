@@ -34,7 +34,7 @@ A full-featured model browser for [SwarmUI](https://github.com/mcmonkeyprojects/
 
   <img src="Assets/screenshots/model_card.webp" alt="A single model card" width="380">
 
-- **Recommended Models**: a curated panel pulled from the SwarmUI docs' [Image](https://github.com/mcmonkeyprojects/SwarmUI/blob/master/docs/Model%20Support.md), [Video](https://github.com/mcmonkeyprojects/SwarmUI/blob/master/docs/Video%20Model%20Support.md), and [Audio](https://github.com/mcmonkeyprojects/SwarmUI/blob/master/docs/Audio%20Model%20Support.md) docs. Three columns, each model showing its architecture/scale/author and a variant dropdown (FP8, BF16, GGUF, NVFP4, LoRAs, etc.); pick a variant and hit **Download** to load it into the manual downloader, or **Open** to view the source page. Current top picks carry a **Recommended** badge. The panel and each column's overflow are independently collapsible, and remember their state.
+- **Recommended Models**: a curated panel pulled from the SwarmUI docs' [Image](https://github.com/mcmonkeyprojects/SwarmUI/blob/master/docs/Model%20Support.md), [Video](https://github.com/mcmonkeyprojects/SwarmUI/blob/master/docs/Video%20Model%20Support.md), and [Audio](https://github.com/mcmonkeyprojects/SwarmUI/blob/master/docs/Audio%20Model%20Support.md) docs. Three columns, each model showing its architecture/scale/author and a variant dropdown (FP8, BF16, GGUF, NVFP4, LoRAs, etc.). Current top picks carry a **Recommended** badge. The panel and each column's overflow are independently collapsible, and remember their state.
 
 ### Manual Downloader Enhancements
 
@@ -55,7 +55,7 @@ A full-featured model browser for [SwarmUI](https://github.com/mcmonkeyprojects/
 ### Performance
 
 - Search results cached 60 seconds per provider/query to avoid redundant API calls
-- Hugging Face preview images cached 5 minutes (evicted past 100 entries)
+- Hugging Face preview images cached 5 minutes on the server, and the last 100 kept in the browser
 - Per-provider concurrent request caps (3 for CivitAI/Hartsy, 5 for Hugging Face) so a burst of card renders can't hammer an upstream API
 - Model folder paths cached 30 seconds
 
@@ -79,7 +79,7 @@ A full-featured model browser for [SwarmUI](https://github.com/mcmonkeyprojects/
 3. Restart SwarmUI (or use one of the `launch-*-dev` scripts, which rebuild on every launch); the extension compiles automatically
 4. Confirm it's enabled under `Server` > `Extensions`
 
-No extra setup is required. Every API key described below is optional, and every provider works anonymously out of the box.
+No extra setup is required. Every API key described below is optional.
 
 ## Usage
 
@@ -92,7 +92,7 @@ No extra setup is required. Every API key described below is optional, and every
 5. Click a card's thumbnail, or its **Download** button, to load that file's URL into the **URL** field on the left
 6. Pick (or create) a destination folder, confirm the **Save as** name, and click **Download**
 
-Pasting a URL directly (CivitAI, Hugging Face, or any other direct-download link) works the same as it always has in SwarmUI. The browser on the right is a convenience on top, not a requirement.
+Pasting a URL directly (CivitAI, Hugging Face, or any other direct-download link) works the same as it always has in SwarmUI.
 
 ### Recommended Models
 
@@ -147,9 +147,9 @@ Finished downloads turn green and can be **Dismiss**ed. They are hidden by defau
 
 **Notes:**
 - Browsing without a search query uses page-based pagination; searching by name uses CivitAI's cursor-based pagination
-- NSFW results require the `model_browser_nsfw` permission (see [Permissions](#permissions)) *and* toggling the NSFW checkbox. With both, requests route through `civitai.red` instead of `civitai.com`
+- NSFW results need the `model_browser_nsfw` permission and the NSFW checkbox (see [NSFW filtering](#nsfw-filtering)), and are fetched from `civitai.red` instead of `civitai.com`
 - An API key unlocks gated/early-access models and raises rate limits
-- File selection prioritizes `.safetensors`; pasting a model or version URL auto-populates version and file dropdowns in the manual downloader
+- File selection prefers `.safetensors`, `.sft` and `.gguf` files
 
 ### Hugging Face
 
@@ -160,7 +160,7 @@ Finished downloads turn green and can be **Dismiss**ed. They are hidden by defau
 **Filters:** pipeline tag (text-to-image, image-to-video, text-to-speech, etc.), library (diffusers, transformers, gguf, safetensors, etc.), sort, author.
 
 **Notes:**
-- Preview images are fetched lazily with a multi-strategy lookup (common filenames, then the repo's file listing, then parsing the README), so a thumbnail may take a moment to appear or may not be available for every repo
+- Preview images are fetched lazily with a multi-strategy lookup (a preview image in the repo's file listing, then common filenames, then the README), so a thumbnail may take a moment to appear or may not be available for every repo
 - File listings are filtered to model-relevant extensions (`.safetensors`, `.gguf`, `.ckpt`, etc.) and show file size
 - An API token unlocks gated/private repos
 
@@ -198,7 +198,7 @@ This extension talks to external hosts only when you actively search, browse, or
 | `huggingface.co` | Searching/browsing Hugging Face, loading file listings/preview images, downloading a file | The Hugging Face Hub API |
 | `hartsy.ai` | Searching/browsing Hartsy, resolving a pasted Hartsy link, downloading a Hartsy file | The Hartsy API |
 
-There's no way to disable the extension's network access short of disabling the extension itself (per [SwarmUI's extension standards](https://github.com/mcmonkeyprojects/SwarmUI/blob/master/docs/Making%20Extensions.md#extension-standards), everything above is a connection you triggered, not one made on your behalf).
+This follows [SwarmUI's extension standards](https://github.com/mcmonkeyprojects/SwarmUI/blob/master/docs/Making%20Extensions.md#extension-standards). The only way to turn this network access off is to disable the extension.
 
 ## Permissions
 
@@ -281,7 +281,7 @@ A `DownloadRecord` looks like:
 }
 ```
 
-Downloads are persisted per-user (LiteDB generic data) so a SwarmUI restart mid-download resumes as **paused**, not lost.
+Downloads are stored per user, so a SwarmUI restart mid-download leaves them **paused**.
 
 ## Troubleshooting
 
@@ -311,7 +311,6 @@ Hugging Face images are fetched lazily and aren't guaranteed for every repo; Civ
 
 Contributions welcome. Areas that would help most:
 - Additional provider integrations
-- Wiring up the per-card extras popover (`model_popover.js`/`getPopoverExtras` exist but aren't currently attached to a visible trigger on the card)
 - Download history and version tracking (planned; `Assets/js/download_history.js` reserves the namespace)
 - Surfacing recent destination folders in the folder tree (the last 12 are still recorded to `localStorage`, but nothing displays them since the folder tree replaced core's dropdown)
 - Making **+ New Folder** show the folder it just created in the tree (it selects correctly and the download lands in the right place, but `buildFolderBrowser()` re-renders from `coreModelMap`, so a folder with no models in it yet never appears)
