@@ -7,14 +7,13 @@ using System.Web;
 
 namespace Hartsy.Extensions.Providers;
 
-/// <summary>Shared HTTP client for all Model Browser providers. Uses SwarmUI's configured client factory instead of the global singleton.</summary>
+/// <summary>Shared HTTP client for all Model Browser providers, built by SwarmUI's client factory.</summary>
 public static class ProviderHttpClient
 {
     public static readonly HttpClient Client = NetworkBackendUtils.MakeHttpClient();
 }
 
 /// <summary>Simple TTL-based cache backed by a <see cref="ConcurrentDictionary{TKey,TValue}"/>.</summary>
-/// <remarks>Initializes a new cache with the given time-to-live duration.</remarks>
 public class ProviderCache(TimeSpan ttl)
 {
     public readonly ConcurrentDictionary<string, (JObject Result, long Timestamp)> Cache = new();
@@ -59,7 +58,7 @@ public class ProviderCache(TimeSpan ttl)
 /// <summary>Builds normalized model result JObjects from provider-specific data.</summary>
 public static class ModelResultBuilder
 {
-    /// <summary>Select the best downloadable file from a CivitAI version's file array.</summary>
+    /// <summary>Picks a CivitAI version's first .safetensors, .sft or .gguf file, else its first file.</summary>
     public static JObject SelectBestFile(JArray files)
     {
         if (files is null || files.Count == 0)
@@ -109,7 +108,7 @@ public static class ModelResultBuilder
         string image = "";
         if (bestVersion?["images"] is JArray imgs)
         {
-            image = imgs.OfType<JObject>().FirstOrDefault(i => (i.Value<string>("type") ?? "") == "image") ?.Value<string>("url") ?? "";
+            image = imgs.OfType<JObject>().FirstOrDefault(i => (i.Value<string>("type") ?? "") == "image")?.Value<string>("url") ?? "";
         }
         JArray downloadOptions = [];
         if (model["modelVersions"] is JArray allVersions)
@@ -263,7 +262,7 @@ public static class ImageFileHelper
         return PreviewBasenames.Contains(name) || PreviewBasenames.Any(b => name.EndsWith(b, StringComparison.OrdinalIgnoreCase));
     }
 
-    /// <summary>Returns common preview filenames to try fetching for a HuggingFace repo.</summary>
+    /// <summary>Common preview filenames to try for a Hugging Face repo.</summary>
     public static IReadOnlyList<string> CommonPreviewFiles { get; } =
     [
         "thumbnail.png", "thumbnail.jpg", "thumbnail.jpeg",
@@ -274,7 +273,6 @@ public static class ImageFileHelper
 }
 
 /// <summary>Simple query-string URL builder.</summary>
-/// <remarks>Initializes a new URL builder with the given base URL.</remarks>
 public class UrlBuilder(string baseUrl)
 {
     public readonly string BaseUrl = baseUrl;

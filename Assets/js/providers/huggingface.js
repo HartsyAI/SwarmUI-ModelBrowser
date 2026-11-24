@@ -14,7 +14,9 @@
     const queuePump = () => {
         while (imageActive < imageMax && imageQueue.length > 0) {
             const task = imageQueue.shift();
-            if (!task) continue;
+            if (!task) {
+                continue;
+            }
             imageActive++;
             task().finally(() => {
                 imageActive--;
@@ -24,7 +26,9 @@
     };
 
     const evictOldestCacheEntries = () => {
-        if (imageCache.size <= IMAGE_CACHE_MAX) return;
+        if (imageCache.size <= IMAGE_CACHE_MAX) {
+            return;
+        }
         const iter = imageCache.keys();
         let toDelete = imageCache.size - IMAGE_CACHE_MAX;
         while (toDelete-- > 0) {
@@ -35,11 +39,19 @@
 
     const getImage = async (modelId) => {
         const key = `${modelId || ''}`;
-        if (!key) return '';
-        if (imageCache.has(key)) return imageCache.get(key) || '';
-        if (imageInflight.has(key)) return await imageInflight.get(key);
+        if (!key) {
+            return '';
+        }
+        if (imageCache.has(key)) {
+            return imageCache.get(key) || '';
+        }
+        if (imageInflight.has(key)) {
+            return await imageInflight.get(key);
+        }
         const utils = window.ModelBrowser && window.ModelBrowser.Utils;
-        if (!utils || !utils.genericRequestAsync) return '';
+        if (!utils || !utils.genericRequestAsync) {
+            return '';
+        }
         const p = (async () => {
             try {
                 const resp = await utils.genericRequestAsync('ModelBrowserHuggingFaceImage', { modelId: key });
@@ -64,15 +76,15 @@
     const applyToManualDownloader = async (item, bestDownloadUrl, openUrl) => {
         try {
             const utils = window.ModelBrowser && window.ModelBrowser.Utils;
-            if (!utils || typeof utils.setManualDownloaderInfo !== 'function') return;
-
+            if (!utils || typeof utils.setManualDownloaderInfo !== 'function') {
+                return;
+            }
             const title = `${item && item.name ? item.name : (item && item.modelId ? item.modelId : '')}`;
             const modelId = item && item.modelId ? `${item.modelId}` : '';
             const descText = stripHtmlToText((item && item.description) ? item.description : '');
             const link = openUrl ? `${openUrl}` : '';
             const fileSize = item && item.fileSize ? item.fileSize : null;
             const fileSizeStr = fileSize && typeof fileSizeStringify === 'function' ? fileSizeStringify(fileSize) : '';
-
             const infoHtml = `
                 <b>${translate('Hugging Face Metadata')}</b>
                 ${title ? `<br><b>${translate('Model')}</b>: ${escapeHtml(title)}` : ''}
@@ -81,16 +93,13 @@
                 ${fileSizeStr ? `<br><b>${translate('File Size')}</b>: ${escapeHtml(fileSizeStr)}` : ''}
                 ${descText ? `<br><b>${translate('Description')}</b>: ${escapeHtml(descText)}` : ''}
             `;
-
             const rawMeta = JSON.stringify({
                 'modelspec.title': title || modelId || '',
                 'modelspec.description': link ? `From ${link}\n${descText || ''}` : (descText || ''),
                 'modelspec.thumbnail': ''
             }, null, 2);
-
             utils.loadUrlIntoManualDownloader(bestDownloadUrl || openUrl);
             utils.setManualDownloaderInfo(infoHtml, rawMeta, '');
-
             if (modelId) {
                 const img = await getImage(modelId);
                 if (img) {
@@ -149,7 +158,7 @@
         getLibraryOptions: function () { return libraryOptions; },
         getSortOptions: function () { return sortOptions; },
 
-        /** File picker for the card: the repo's files are already in the search result (capped at 25), no fetch needed. */
+        /** File picker for the card: the repo's files are already in the search result, so no fetch is needed. */
         getPrimaryOptions: function (item) {
             const files = Array.isArray(item.downloadOptions) ? item.downloadOptions : [];
             return files.filter(f => f && f.downloadUrl).map(f => {
@@ -196,28 +205,37 @@
 
         /** Queue an image load for a card's img element. */
         loadCardImage: function (imgEl, modelId, renderId) {
-            if (!imgEl || !modelId) return;
+            if (!imgEl || !modelId) {
+                return;
+            }
             const rid = `${renderId}`;
             const task = async () => {
                 const image = await getImage(modelId);
-                if (!image) return;
-                if (imgEl.dataset && imgEl.dataset.renderId && imgEl.dataset.renderId !== rid) return;
+                if (!image) {
+                    return;
+                }
+                if (imgEl.dataset && imgEl.dataset.renderId && imgEl.dataset.renderId !== rid) {
+                    return;
+                }
                 imgEl.src = image;
             };
             imageQueue.push(task);
             queuePump();
         },
 
-        /** Return extra popover buttons for HuggingFace models. */
+        /** Adds a "Load all files..." button to the card menu. */
         getPopoverExtras: function (item, menuDiv) {
             const utils = window.ModelBrowser && window.ModelBrowser.Utils;
-            if (!item || !item.modelId) return;
-
+            if (!item || !item.modelId) {
+                return;
+            }
             const loadAllBtn = document.createElement('div');
             loadAllBtn.className = 'sui_popover_model_button';
             loadAllBtn.innerText = translate('Load all files...');
             loadAllBtn.onclick = async () => {
-                if (loadAllBtn.dataset.loading === 'true') return;
+                if (loadAllBtn.dataset.loading === 'true') {
+                    return;
+                }
                 loadAllBtn.dataset.loading = 'true';
                 loadAllBtn.innerText = translate('Loading...');
                 try {
@@ -232,13 +250,19 @@
                     const downloadOptions = Array.isArray(item.downloadOptions) ? item.downloadOptions : [];
                     const existing = new Set();
                     for (const opt of downloadOptions) {
-                        if (opt && opt.downloadUrl) existing.add(`${opt.downloadUrl}`);
+                        if (opt && opt.downloadUrl) {
+                            existing.add(`${opt.downloadUrl}`);
+                        }
                     }
                     let added = 0;
                     for (const opt of resp.files) {
-                        if (!opt || !opt.downloadUrl) continue;
+                        if (!opt || !opt.downloadUrl) {
+                            continue;
+                        }
                         const dl = `${opt.downloadUrl}`;
-                        if (existing.has(dl)) continue;
+                        if (existing.has(dl)) {
+                            continue;
+                        }
                         existing.add(dl);
                         const optBtn = document.createElement('div');
                         optBtn.className = 'sui_popover_model_button';

@@ -1,6 +1,5 @@
 /* Model Browser Styles */
 
-
 .model-browser-smallbtn {
     padding: 0.15rem 0.5rem;
     font-size: 90%;
@@ -296,9 +295,6 @@
     height: 100%;
     border-radius: 999px;
     background: #0000aa;
-    /* width (not transform: scaleX) is fine here: this only transitions on discrete poll updates (every 2s at
-       most) on one small element per card, not a continuous per-frame animation - unlike the indeterminate
-       keyframes below, which do run continuously and use transform for exactly that reason. */
     transition: width 0.3s ease;
 }
 
@@ -314,16 +310,13 @@
     background: #00aa00;
 }
 
-/* Total size is unknown until the server responds - show motion instead of a percent that can't be computed yet.
-   !important is needed here since JS sets the bar's width inline as real progress becomes known. */
+/* Size unknown: animate instead of showing a percent. !important overrides the inline width JS sets. */
 .model-browser-downloads-zone .model-browser-download-card .model-browser-download-progress.model-browser-progress-indeterminate .model-browser-download-progress-bar {
     width: 30% !important;
     animation: model-browser-download-indeterminate 1.2s ease-in-out infinite;
 }
 
-/* translateX (not margin-left) so this animates on the compositor instead of triggering layout every frame. The
-   bar is 30% of its container's width, so translateX(233%) - 70/30*100 - shifts it the same 70%-of-container
-   distance margin-left would have, just expressed in units of the bar's own width. */
+/* translateX(233%) moves the 30%-wide bar across the other 70% of its container. */
 @keyframes model-browser-download-indeterminate {
     0% { transform: translateX(0%); }
     50% { transform: translateX(233%); }

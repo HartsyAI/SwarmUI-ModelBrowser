@@ -12,36 +12,31 @@
     function createModelCard(model) {
         const utils = window.ModelBrowser && window.ModelBrowser.Utils;
         const downloads = Array.isArray(model.downloads) ? model.downloads : [];
-
         const card = document.createElement('div');
         card.className = 'model-block model-block-hoverable model-browser-featured-card';
         if (model.isRecommended) {
             card.classList.add('model-browser-featured-recommended');
         }
-
         const badgeHtml = model.isRecommended
             ? ' <span class="model-browser-featured-badge translate">Recommended</span>'
             : '';
-
         const chips = [model.architecture, model.scale, model.author].filter(Boolean);
         const chipsStr = chips.map(t => escapeHtml(t)).join(' | ');
-
         const noteHtml = model.note
             ? `<div class="model-browser-featured-note">${escapeHtml(model.note)}</div>`
             : '';
-
         const header = document.createElement('div');
         header.innerHTML = `
             <div><b>${escapeHtml(model.name || '')}</b>${badgeHtml}</div>
             <div class="model-browser-featured-chips">${chipsStr}</div>
             ${noteHtml}
         `;
-        while (header.firstChild) card.appendChild(header.firstChild);
-
+        while (header.firstChild) {
+            card.appendChild(header.firstChild);
+        }
         if (downloads.length > 0) {
             const actions = document.createElement('div');
             actions.className = 'model-browser-model-actions';
-
             const select = document.createElement('select');
             select.className = 'auto-dropdown model-browser-featured-select';
             select.autocomplete = 'off';
@@ -52,16 +47,16 @@
                 select.appendChild(opt);
             }
             actions.appendChild(select);
-
             const dlBtn = document.createElement('button');
             dlBtn.type = 'button';
             dlBtn.className = 'basic-button model-browser-smallbtn';
             dlBtn.innerHTML = '<span class="translate">Download</span>';
             dlBtn.onclick = () => {
-                if (utils && select.value) utils.loadUrlIntoManualDownloader(select.value);
+                if (utils && select.value) {
+                    utils.loadUrlIntoManualDownloader(select.value);
+                }
             };
             actions.appendChild(dlBtn);
-
             const openBtn = document.createElement('a');
             openBtn.className = 'basic-button model-browser-smallbtn';
             openBtn.target = '_blank';
@@ -72,7 +67,6 @@
                 openBtn.href = select.value || '#';
             });
             actions.appendChild(openBtn);
-
             card.appendChild(actions);
         }
         return card;
@@ -81,12 +75,10 @@
     function buildColumn(title, models, expandKey) {
         const col = document.createElement('div');
         col.className = 'model-browser-featured-column';
-
         const header = document.createElement('div');
         header.className = 'model-browser-featured-group-header';
         header.textContent = translate(title);
         col.appendChild(header);
-
         if (models.length === 0) {
             const empty = document.createElement('div');
             empty.className = 'model-browser-featured-empty';
@@ -94,22 +86,20 @@
             col.appendChild(empty);
             return col;
         }
-
         const list = document.createElement('div');
         list.className = 'model-browser-featured-list';
         col.appendChild(list);
-
         for (let i = 0; i < models.length; i++) {
             const card = createModelCard(models[i]);
-            if (i > 0) card.classList.add('model-browser-featured-collapsible');
+            if (i > 0) {
+                card.classList.add('model-browser-featured-collapsible');
+            }
             list.appendChild(card);
         }
-
         if (models.length > 1) {
             const toggleBtn = document.createElement('button');
             toggleBtn.type = 'button';
             toggleBtn.className = 'basic-button model-browser-smallbtn model-browser-featured-expand-btn';
-
             const isExpanded = localStorage.getItem(expandKey) === 'true';
             const updateToggle = (expanded) => {
                 const collapsible = list.querySelectorAll('.model-browser-featured-collapsible');
@@ -131,24 +121,27 @@
 
             col.appendChild(toggleBtn);
         }
-
         return col;
     }
 
     window.ModelBrowser.Components.FeaturedModels = {
         tryEmbed: function tryEmbed() {
             const utils = window.ModelBrowser && window.ModelBrowser.Utils;
-            if (!utils || !utils.genericRequestAsync) return false;
-
+            if (!utils || !utils.genericRequestAsync) {
+                return false;
+            }
             const wrapper = document.querySelector('.model-downloader-section-wrapper');
-            if (!wrapper) return false;
-            if (wrapper.dataset.modelBrowserFeaturedDone) return true;
-
+            if (!wrapper) {
+                return false;
+            }
+            if (wrapper.dataset.modelBrowserFeaturedDone) {
+                return true;
+            }
             const rightCol = wrapper.querySelector('.model-browser-col-right');
-            if (!rightCol) return false;
-
+            if (!rightCol) {
+                return false;
+            }
             wrapper.dataset.modelBrowserFeaturedDone = 'true';
-
             const card = document.createElement('div');
             card.className = 'card border-secondary mb-3 model-browser-featured-section';
             card.innerHTML = `
@@ -169,12 +162,10 @@
                     <div class="model-browser-featured-columns"></div>
                 </div>
             `;
-
             const bodyWrap = card.querySelector('.model-browser-featured-body-wrap');
             const toggleBtn = card.querySelector('.model-browser-featured-toggle');
             const loadingEl = card.querySelector('.model-browser-featured-loading');
             const columnsEl = card.querySelector('.model-browser-featured-columns');
-
             const isCollapsed = localStorage.getItem(COLLAPSE_KEY) === 'true';
             toggleBtn.textContent = translate(isCollapsed ? 'Show' : 'Hide');
             if (isCollapsed) {
@@ -190,10 +181,10 @@
             const browseCard = rightCol.querySelector('.model-browser-browser-card');
             if (browseCard) {
                 rightCol.insertBefore(card, browseCard);
-            } else {
+            }
+            else {
                 rightCol.insertBefore(card, rightCol.firstChild);
             }
-
             utils.genericRequestAsync('ModelBrowserGetFeaturedModels', {}).then(resp => {
                 loadingEl.style.display = 'none';
                 if (!resp || !resp.success || !Array.isArray(resp.models) || resp.models.length === 0) {
@@ -207,24 +198,20 @@
                     }
                     return;
                 }
-
                 const imageModels = resp.models.filter(m => m.category === 'image');
                 const videoModels = resp.models.filter(m => m.category === 'video');
                 const audioModels = resp.models.filter(m => m.category === 'audio');
-
                 columnsEl.appendChild(buildColumn('Image Models', imageModels, EXPAND_IMAGE_KEY));
                 columnsEl.appendChild(buildColumn('Video Models', videoModels, EXPAND_VIDEO_KEY));
                 if (audioModels.length > 0) {
                     columnsEl.appendChild(buildColumn('Audio Models', audioModels, EXPAND_AUDIO_KEY));
                 }
-
                 if (typeof applyTranslations === 'function') {
                     applyTranslations(card);
                 }
             }).catch(() => {
                 loadingEl.textContent = translate('Failed to load featured models.');
             });
-
             return true;
         }
     };

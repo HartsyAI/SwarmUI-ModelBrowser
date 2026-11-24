@@ -6,11 +6,9 @@
     const DOM_READY_TIMEOUT_MS = 15000;
     const DOM_RETRY_INTERVAL_INITIAL_MS = 100;
     const DOM_RETRY_INTERVAL_MAX_MS = 1000;
-    let downloadRoots = null;
-
-    // A fresh page's first call can be refused before SwarmUI has a session for it, and the retry then succeeds. Without retrying,
-    // the roots stay unknown for the life of the page and the destination preview is built from nothing.
+    // A fresh page's first call can be refused before SwarmUI has a session for it; a retry then succeeds.
     const DOWNLOAD_ROOTS_ATTEMPTS = 5;
+    let downloadRoots = null;
 
     async function loadDownloadRoots() {
         const utils = window.ModelBrowser && window.ModelBrowser.Utils;
@@ -132,7 +130,6 @@
             return true;
         }
         folders.dataset.modelBrowserDone = 'true';
-
         const origBuild = modelDownloader.buildFolderSelector.bind(modelDownloader);
         modelDownloader.buildFolderSelector = (selector) => {
             origBuild(selector);
@@ -146,15 +143,12 @@
             <div class="model-browser-destination-path"><span class="path"></span></div>
         `;
         const destinationPath = destination.querySelector('.path');
-
         const isOldDropdown = folders.tagName === 'SELECT' && !modelDownloader.folderBrowser;
-
         let newWrap = null;
         let toggleBtn = null;
         let inline = null;
         let input = null;
         let addBtn = null;
-
         if (isOldDropdown) {
             newWrap = document.createElement('div');
             newWrap.className = 'model-browser-new-folder';
@@ -178,7 +172,6 @@
             const root = rootRaw ? toDisplayRoot(rootRaw) : normalizePath(type);
             const folder = utils && utils.resolveSelectedFolder ? utils.resolveSelectedFolder(modelDownloader) : '';
             const nameVal = modelDownloader.name ? (modelDownloader.name.value || '') : '';
-
             const combined = `${root}/${folder ? folder + '/' : ''}${nameVal}`.replaceAll('\\', '/').replaceAll(/\/+/g, '/');
             destinationPath.textContent = combined;
         };
@@ -206,7 +199,7 @@
                     folders.appendChild(opt);
                 }
                 folders.value = safe;
-                // Keep selectedFolder in sync too, or folder_browser_injection.js's run() wrapper overwrites this on download.
+                // Keep selectedFolder in sync too: resolveSelectedFolder() reads it once the folder tree UI is active.
                 if (window.modelDownloader) {
                     modelDownloader.selectedFolder = safe;
                     if (typeof modelDownloader.updateSelectedFolderDisplay === 'function') {
@@ -224,7 +217,6 @@
                 }
             });
         }
-
         if (isOldDropdown) {
             folders.addEventListener('change', () => {
                 addRecent(folders.value);
@@ -243,7 +235,6 @@
                 modelDownloader.selectFolder = wrapped;
             }
         }
-
         if (modelDownloader.type) {
             modelDownloader.type.addEventListener('change', updatePreview);
         }
@@ -251,7 +242,6 @@
             modelDownloader.name.addEventListener('input', updatePreview);
             modelDownloader.name.addEventListener('change', updatePreview);
         }
-
         if (modelDownloader.nameInput && !modelDownloader.nameInput._modelBrowserWrapped) {
             const origNameInput = modelDownloader.nameInput.bind(modelDownloader);
             const wrapped = () => {
@@ -261,7 +251,6 @@
             wrapped._modelBrowserWrapped = true;
             modelDownloader.nameInput = wrapped;
         }
-
         if (modelDownloader.urlInput && !modelDownloader.urlInput._modelBrowserWrapped) {
             const origUrlInput = modelDownloader.urlInput.bind(modelDownloader);
             const wrapped = () => {
@@ -271,7 +260,6 @@
             wrapped._modelBrowserWrapped = true;
             modelDownloader.urlInput = wrapped;
         }
-
         if (isOldDropdown) {
             folders.insertAdjacentElement('afterend', newWrap);
             if (modelDownloader.name) {
@@ -291,14 +279,12 @@
             }
         }
         applyTranslations(destination);
-
         modelDownloader.reloadFolders();
         updatePreview();
         return true;
     }
 
-    // Matches both the old `hartsy.ai/models/<id>` page link and the current `hartsy.ai/Home?type=models&id=<id>` link,
-    // since users may still have the old form saved/shared. Returns the model ID, or null if not a Hartsy model link.
+    // Returns the model ID from a Hartsy `/models/<id>`, `/Home?type=models&id=<id>` or `/download/<id>` link, or null.
     function extractHartsyModelId(rawUrl) {
         let parsed;
         try {
@@ -342,9 +328,8 @@
         }
     }
 
-    // Hartsy model page links (copied from the site or pasted from "Copy Model Link") aren't direct file downloads and
-    // carry no metadata core's urlInput() can parse - resolve them through the Hartsy API instead, mirroring how core
-    // handles CivitAI links, so pasting one populates the real download URL, name, and info instead of going stale.
+    // Hartsy model links are not file downloads and carry nothing core's urlInput() can parse, so resolve them through the
+    // Hartsy API, the way core resolves CivitAI links.
     function wrapUrlInputForHartsy() {
         if (!window.modelDownloader || typeof modelDownloader.urlInput !== 'function' || modelDownloader.urlInput._modelBrowserHartsy) {
             return;
@@ -372,9 +357,7 @@
             }
             Promise.all([
                 utils.genericRequestAsync('ModelBrowserHartsyDownload', { modelId }),
-                // Details carries the preview (image/description/architecture); fetched separately since it's cacheable
-                // and doesn't record a download analytics event the way the download-info call does. Best-effort - a
-                // details failure shouldn't block resolving the actual download link below.
+                // Details carry the preview and record no download event; a failure there must not block the download link.
                 utils.genericRequestAsync('ModelBrowserHartsyModelDetails', { modelId }).catch(() => null)
             ]).then(([resp, details]) => {
                 if (myToken !== requestToken) {
@@ -385,12 +368,10 @@
                 const cleanName = `${title}`.replaceAll(/[\\/:*?"<>|]/g, '-').replaceAll(' ', '_');
                 modelDownloader.name.value = cleanName;
                 modelDownloader.name.style.borderColor = '';
-
                 // The API names the SwarmUI folder for the model's kind (LoRA, VAE, ControlNet, ...); a checkpoint is the default.
                 if (modelDownloader.type && resp && resp.swarmType) {
                     modelDownloader.type.value = resp.swarmType;
                 }
-
                 let infoHtml = '';
                 if (hasDetails) {
                     const descText = stripHtmlToText(details.description || '');
@@ -409,13 +390,11 @@
                     const sidecar = resp && resp.success ? resp.metadata || '' : '';
                     utils.setManualDownloaderInfo(infoHtml, sidecar, hasDetails ? details.image || '' : '');
                 }
-
                 if (!resp || !resp.success || !resp.downloadUrl) {
                     modelDownloader.urlStatusArea.innerText = `${translate('Resolved')} "${title}" ${translate('from Hartsy, but Hartsy has no direct download link available for this model yet.')}${resp && resp.error ? ` (${resp.error})` : ''}`;
                     modelDownloader.button.disabled = true;
                     return;
                 }
-
                 modelDownloader.url.value = utils.appendExtensionHint ? utils.appendExtensionHint(resp.downloadUrl, resp.fileName) : resp.downloadUrl;
                 modelDownloader.urlStatusArea.innerText = translate('URL appears to be a Hartsy model link, and has been resolved to a direct download link.');
                 modelDownloader.nameInput();
@@ -455,7 +434,6 @@
             return true;
         }
         url.dataset.modelBrowserDone = 'true';
-
         const btnWrap = document.createElement('span');
         btnWrap.className = 'model-browser-url-actions';
         btnWrap.innerHTML = `
@@ -509,14 +487,12 @@
             return true;
         }
         wrapper.dataset.modelBrowserDownloadsDone = 'true';
-
         if (!wrapper.dataset.modelBrowserLayoutDone) {
             const topCard = document.querySelector('#Utilities-ModelDownloader-Tab > .card.border-secondary');
             if (topCard) {
                 topCard.classList.add('model-browser-topcard');
                 topCard.style.display = 'none';
             }
-
             const layout = document.createElement('div');
             layout.className = 'model-browser-layout';
             const left = document.createElement('div');
@@ -526,7 +502,6 @@
             wrapper.insertBefore(layout, wrapper.firstChild);
             left.appendChild(main);
             right.appendChild(sidebar);
-
             main.classList.add('model-browser-manual');
             const mainInner = main.querySelector(':scope > div');
             if (mainInner) {
@@ -542,7 +517,6 @@
   <li><b class="translate">Metadata:</b> <span class="translate">CivitAI, Hugging Face and Hartsy links load their details automatically.</span></li>
   <li><b class="translate">Anything else:</b> <span class="translate">Must be a direct download URL, not the HTML page around it.</span></li>
 </ul>`;
-
             const rightInfo = document.createElement('div');
             rightInfo.className = 'model-browser-section-info model-browser-info-right';
             rightInfo.innerHTML = `
@@ -556,15 +530,12 @@
             layout.append(leftInfo, left, rightInfo, right);
             applyTranslations(leftInfo);
             applyTranslations(rightInfo);
-
             wrapper.dataset.modelBrowserLayoutDone = 'true';
         }
-
         const leftCol = wrapper.querySelector('.model-browser-col-left');
         if (!leftCol) {
             return false;
         }
-
         const card = document.createElement('div');
         card.className = 'card border-secondary mb-3 model-browser-downloads-card';
         card.innerHTML = `
@@ -578,7 +549,6 @@
         `;
         const body = card.querySelector('.model-browser-downloads-body');
         const showCompleted = card.querySelector('.model-browser-show-completed-toggle');
-
         sidebar.classList.add('model-browser-downloads-zone');
         body.appendChild(sidebar);
 
@@ -607,13 +577,9 @@
         return comp.tryEmbed();
     }
 
-    // Core's ModelDownloaderUtil.run() builds an ActiveModelDownload, whose progress/resume behavior is buggy
-    // (overall_percent is a hardcoded placeholder, total size is never sent, and cancelling deletes the partial
-    // file instead of keeping it resumable - see WebAPI/Downloads/DownloadManager.cs for the replacement). Take
-    // over run() entirely rather than patching around ActiveModelDownload, the same way folder_browser_injection.js
-    // already wraps run() for its own folder sync. This runs after that wrap in the load order, so overwriting
-    // `mdl.run` here discards it - fine, since resolveSelectedFolder() (used by startFromManualDownloader) reads
-    // the same folder-browser state directly instead of depending on the hidden legacy <select> it used to sync.
+    // Core's run() builds an ActiveModelDownload, which deletes the partial file on cancel, so take run() over for the
+    // resumable server-side downloader. This replaces folder_browser_injection.js's run() wrapper, which is safe because
+    // resolveSelectedFolder() reads the folder-browser state directly.
     function tryTakeOverDownloadRun() {
         if (!window.modelDownloader || typeof modelDownloader.run !== 'function') {
             return false;

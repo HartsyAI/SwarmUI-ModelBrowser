@@ -37,10 +37,8 @@
             if (!utils || !utils.genericRequestAsync) {
                 throw new Error('ModelBrowser utils not loaded');
             }
-            // Hartsy has no CivitAI-style "type" concept; checkpoint vs LoRA is distinguished by
-            // architecture (e.g. "qwen-image" vs "qwen-image/lora"), so the type filter is not folded
-            // into the tag query here - doing so (e.g. tags=checkpoint) matches nothing.
-            // The browser passes the tag box as `tag`; accept both spellings so the filter is not silently dropped.
+            // The type filter is not folded into tags: Hartsy has no type, and tags=checkpoint matches nothing.
+            // The browser sends the tag box as `tag`, so accept both spellings.
             const tags = params.tags || params.tag || '';
             return await utils.genericRequestAsync('ModelBrowserHartsySearch', {
                 query: params.query || '',
@@ -80,8 +78,7 @@
             return { architectures: [], tags: [], uploadSources: [], generateTiers: [] };
         },
 
-        // Hartsy has no type concept; a LoRA is an architecture suffix, so "every LoRA" is a comma-joined
-        // architecture list. The `lora` tag is not usable for this: base models carry it too.
+        /** Every LoRA architecture, comma-joined. Hartsy marks a LoRA by architecture suffix; its `lora` tag is on base models too. */
         loraArchitectures: function (architectures) {
             return (architectures || [])
                 .map(a => a && a.id)
@@ -124,7 +121,9 @@
          */
         getVersionGroups: async function (modelId) {
             const utils = window.ModelBrowser && window.ModelBrowser.Utils;
-            if (!modelId || !utils || !utils.genericRequestAsync) return [];
+            if (!modelId || !utils || !utils.genericRequestAsync) {
+                return [];
+            }
             const resp = await utils.genericRequestAsync('ModelBrowserHartsyVersions', {
                 modelId: `${modelId}`
             });
@@ -163,15 +162,20 @@
             let groups;
             try {
                 groups = await this.getVersionGroups(item.modelId);
-            } catch (e) {
+            }
+            catch (e) {
                 console.warn('[ModelBrowser] Failed to load Hartsy versions for the precision picker:', e);
                 return null;
             }
             const group = this.findGroupFor(groups, item.modelId);
-            if (!group) return null;
+            if (!group) {
+                return null;
+            }
             const entries = [group.primary, ...(Array.isArray(group.variants) ? group.variants : [])].filter(v => v && v.id);
             // The API blanks model_url on a file this account can't download, or that has no file; list those disabled, not hidden.
-            if (!entries.some(v => v.downloadUrl)) return null;
+            if (!entries.some(v => v.downloadUrl)) {
+                return null;
+            }
             return entries.map(v => {
                 const parts = [v.precisionLabel || v.precision, v.specialFormat].filter(Boolean);
                 const sizeStr = v.fileSize && typeof fileSizeStringify === 'function' ? fileSizeStringify(v.fileSize) : '';
@@ -192,7 +196,9 @@
 
         handleDownload: function (item) {
             const utils = window.ModelBrowser && window.ModelBrowser.Utils;
-            if (!utils) return;
+            if (!utils) {
+                return;
+            }
             const targetId = item.modelVersionId || item.modelId;
             // The page link, not a resolved file URL: the manual downloader's resolver fills in name, type and
             // metadata from it, and resolving here too would bill a second download event per click.
@@ -210,7 +216,9 @@
 
         getPopoverExtras: function (item, menuDiv) {
             const utils = window.ModelBrowser && window.ModelBrowser.Utils;
-            if (!item.modelId || !utils || !utils.genericRequestAsync) return;
+            if (!item.modelId || !utils || !utils.genericRequestAsync) {
+                return;
+            }
             if (item.torrent && item.torrent.magnetLink) {
                 const magnetBtn = document.createElement('div');
                 magnetBtn.className = 'sui_popover_model_button';
@@ -249,7 +257,8 @@
                         };
                         menuDiv.appendChild(verBtn);
                     }
-                } catch (e) {
+                }
+                catch (e) {
                     console.warn('[ModelBrowser] Failed to load Hartsy versions:', e);
                     versionsBtn.innerText = translate('Failed to load versions');
                     versionsBtn.style.pointerEvents = '';

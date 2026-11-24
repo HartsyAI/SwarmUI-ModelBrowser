@@ -2,12 +2,12 @@ using Newtonsoft.Json.Linq;
 using SwarmUI.Accounts;
 using SwarmUI.Core;
 using SwarmUI.Utils;
+using SwarmUI.WebAPI;
 using System.Collections.Specialized;
 using System.IO;
 using System.Net.Http;
-using SwarmUI.WebAPI;
-using System.Web;
 using System.Net.Http.Headers;
+using System.Web;
 
 namespace Hartsy.Extensions.Providers;
 
@@ -198,9 +198,15 @@ public class HuggingFaceProvider : IModelBrowserProvider
         }
         string rel = rawUrl;
         int hash = rel.IndexOf('#');
-        if (hash >= 0) rel = rel[..hash];
+        if (hash >= 0)
+        {
+            rel = rel[..hash];
+        }
         int q = rel.IndexOf('?');
-        if (q >= 0) rel = rel[..q];
+        if (q >= 0)
+        {
+            rel = rel[..q];
+        }
         rel = rel.Trim();
         if (string.IsNullOrWhiteSpace(rel))
         {
@@ -217,7 +223,7 @@ public class HuggingFaceProvider : IModelBrowserProvider
         return BuildResolveUrl(modelId, rel);
     }
 
-    /// <summary>Extract image URLs from markdown ![alt](url) syntax using simple string parsing.</summary>
+    /// <summary>Extracts image URLs from markdown ![alt](url) syntax.</summary>
     public static void ExtractMarkdownImageUrls(string md, List<string> results)
     {
         int pos = 0;
@@ -255,7 +261,7 @@ public class HuggingFaceProvider : IModelBrowserProvider
         }
     }
 
-    /// <summary>Extract image URLs from HTML img src attributes using simple string parsing.</summary>
+    /// <summary>Extracts image URLs from HTML img src attributes.</summary>
     public static void ExtractHtmlImgSrcUrls(string md, List<string> results)
     {
         int pos = 0;
@@ -309,7 +315,6 @@ public class HuggingFaceProvider : IModelBrowserProvider
                 {
                     continue;
                 }
-
                 md = await response.Content.ReadAsStringAsync();
             }
             catch (Exception ex)
@@ -350,7 +355,7 @@ public class HuggingFaceProvider : IModelBrowserProvider
         return "";
     }
 
-    /// <summary>Fetch a preview image for a HuggingFace model. Called lazily from JS per-card, not inline during search.</summary>
+    /// <summary>Fetches a preview image for a Hugging Face model. Called lazily per card, not during search.</summary>
     public async Task<JObject> GetPreviewImageAsync(Session session, string modelId)
     {
         modelId = (modelId ?? "").Trim();
@@ -410,7 +415,7 @@ public class HuggingFaceProvider : IModelBrowserProvider
         }
     }
 
-    /// <summary>Wraps an image URL in a success result, stores it in the image cache, and returns it.</summary>
+    /// <summary>Wraps an image data URL in a success result and caches it.</summary>
     public static JObject CacheAndReturn(string cacheKey, string image)
     {
         JObject result = new() { ["success"] = true, ["image"] = image ?? "" };
@@ -685,7 +690,10 @@ public class HuggingFaceProvider : IModelBrowserProvider
         {
             foreach (string part in link.Split(','))
             {
-                if (!part.Contains("rel=\"next\"", StringComparison.OrdinalIgnoreCase)) continue;
+                if (!part.Contains("rel=\"next\"", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
                 int start = part.IndexOf('<');
                 int end = part.IndexOf('>');
                 if (start >= 0 && end > start)

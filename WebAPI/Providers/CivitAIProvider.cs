@@ -32,7 +32,7 @@ public class CivitAIProvider : IModelBrowserProvider
     public const string SfwHost = "civitai.com";
     public const string NsfwHost = "civitai.red";
 
-    /// <summary>Returns the correct CivitAI API host based on whether NSFW is requested and permitted.</summary>
+    /// <summary>Returns the CivitAI API host for SFW or NSFW results.</summary>
     public static string GetApiHost(bool includeNsfw)
     {
         return includeNsfw ? NsfwHost : SfwHost;
@@ -244,7 +244,7 @@ public class CivitAIProvider : IModelBrowserProvider
         }
     }
 
-    /// <summary>Fetches CivitAI tag suggestions for autocomplete. Cached for 5 minutes per query prefix.</summary>
+    /// <summary>Fetches CivitAI tag suggestions for autocomplete.</summary>
     public async Task<JObject> GetTagsAsync(Session session, string query, int limit = 20)
     {
         limit = Math.Clamp(limit, 1, 200);
@@ -290,7 +290,7 @@ public class CivitAIProvider : IModelBrowserProvider
         return result;
     }
 
-    /// <summary>Fetches example images (with prompt metadata) for a specific model version. Cached for 5 minutes.</summary>
+    /// <summary>Fetches example images (with prompt metadata) for a specific model version.</summary>
     public async Task<JObject> GetExampleImagesAsync(Session session, long modelVersionId, int limit = 6, bool includeNsfw = false)
     {
         if (modelVersionId <= 0)
@@ -399,7 +399,7 @@ public class CivitAIProvider : IModelBrowserProvider
         return result;
     }
 
-    /// <summary>Fetches CivitAI's live model-type and base-model enum values. Cached for 6 hours.</summary>
+    /// <summary>Fetches CivitAI's live model-type and base-model enum values.</summary>
     public async Task<JObject> GetFilterOptionsAsync(Session session)
     {
         const string cacheKey = "civitai:enums";

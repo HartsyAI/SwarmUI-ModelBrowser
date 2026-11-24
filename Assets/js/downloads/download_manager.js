@@ -1,7 +1,5 @@
-/* Owns the entire in-progress-downloads UI: one card per download, driven by the server-side state in
- * WebAPI/Downloads/DownloadManager.cs. The server is the sole source of truth (bytes downloaded, state,
- * speed) - this module only renders it and forwards button clicks. That's what makes reload-mid-download
- * safe: on load it just asks the server what's still going and redraws from that, same as any other poll. */
+/* Renders one card per download from the server-side state in WebAPI/Downloads/DownloadManager.cs and forwards
+ * button clicks. The server is the only source of truth, so a page reload just redraws from its list. */
 (function () {
     'use strict';
 
@@ -29,9 +27,7 @@
             return await u.genericRequestAsync(endpoint, payload);
         }
         catch (e) {
-            // genericRequestAsync rejects with the raw `data.error` string (core's genericRequest() would
-            // normally toast it itself, but genericRequestAsync passes its own errorHandle to suppress that
-            // and reject instead) - repackage it into the `{error}` shape every call site here expects.
+            // genericRequestAsync rejects with the raw error string; repackage it as the `{error}` callers expect.
             console.warn(`[ModelBrowser] ${endpoint} failed:`, e);
             const message = typeof e === 'string' ? e : (e && e.message) || 'Request failed.';
             return { error: message };
@@ -45,8 +41,7 @@
     /** Builds the status line for a card. Returned as HTML (not text) since the errored case needs a link. */
     function statusHtml(rec) {
         const known = rec.totalBytes > 0;
-        // Set only for the attempt where the server didn't honor a resume and the byte count restarted from
-        // zero - without this, that jump reads as an unexplained progress regression instead of what it is.
+        // Set only when the server refused a resume and the byte count restarted from zero.
         const noteHtml = rec.note ? `<br>${escapeHtml(rec.note)}` : '';
         if (rec.state === 'downloading') {
             const speed = rec.perSecond > 0 ? ` - ${formatBytes(rec.perSecond)}/s` : '';
@@ -154,8 +149,7 @@
         els.bar.style.width = `${pct}%`;
         els.progressWrap.classList.toggle('model-browser-progress-indeterminate', rec.state === 'downloading' && !known);
         els.status.innerHTML = statusHtml(rec);
-        // State classes go on `root` (the `.model-browser-download-card`), not the inner `.card` - the CSS selectors for
-        // per-state coloring and the "Show completed" toggle both key off `.model-browser-download-card.model-browser-state-*`.
+        // State classes go on the outer `.model-browser-download-card`, which the state colors and Show completed select on.
         els.root.classList.remove('model-browser-state-downloading', 'model-browser-state-paused', 'model-browser-state-errored', 'model-browser-state-completed');
         els.root.classList.add(`model-browser-state-${rec.state}`);
         renderActions(els.actions, rec);
@@ -169,8 +163,7 @@
         }
     }
 
-    /** Starts or stops the poll loop based on whether anything is actively downloading right now. Paused/errored/
-     * completed downloads don't change on their own server-side, so there's nothing to gain from polling for them. */
+    /** Polls only while something is downloading; the other states do not change on the server by themselves. */
     function reconcilePolling() {
         const anyActive = [...records.values()].some(r => r.state === 'downloading');
         if (anyActive && !pollTimer) {
@@ -191,8 +184,7 @@
         reconcilePolling();
     }
 
-    /** Replaces the full known set with the server's list - the server is authoritative, so anything locally
-     * tracked but absent here (eg cleared from another tab) is dropped too. */
+    /** Replaces the known set with the server's list, dropping anything it no longer has (eg cleared in another tab). */
     function applyList(list) {
         if (!ensureZone()) {
             return;
@@ -248,8 +240,7 @@
         }
     }
 
-    /** Entry point for model_browser_main.js's replacement of modelDownloader.run(). Reads the same fields core's
-     * ActiveModelDownload constructor would have, and hands them to the server-side resumable downloader instead. */
+    /** Replacement for modelDownloader.run(): reads the fields core's ActiveModelDownload would and starts a server-side download. */
     async function startFromManualDownloader(mdl) {
         const u = utils();
         if (!mdl || !u || !ensureZone()) {
@@ -280,10 +271,9 @@
         }
     }
 
-    /** Fetches whatever downloads are already known server-side (in progress, paused, or errored across a page
-     * reload or server restart) and renders them. Returns false if modelDownloader isn't in the DOM yet, so the
-     * caller's retry loop tries again later. */
     let initialized = false;
+
+    /** Renders the downloads the server already knows of. Returns false while modelDownloader is not in the DOM yet, so the caller retries. */
     async function init() {
         if (initialized) {
             return true;

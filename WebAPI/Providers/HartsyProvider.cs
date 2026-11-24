@@ -22,6 +22,7 @@ public class HartsyProvider : IModelBrowserProvider
     public const string SiteOrigin = "https://hartsy.ai";
     public static readonly ProviderCache SearchCache = new(TimeSpan.FromSeconds(60));
     public static readonly ProviderCache FilterCache = new(TimeSpan.FromMinutes(5));
+    public static readonly ProviderCache DetailsCache = new(TimeSpan.FromMinutes(5));
     public static readonly SemaphoreSlim RateLimiter = new(3, 3);
     public static readonly HashSet<string> AllowedSorts = ["created_at", "updated_at", "title", "downloads"];
 
@@ -65,9 +66,8 @@ public class HartsyProvider : IModelBrowserProvider
         }
     }
 
-    /// <summary>Sends a GET to the Hartsy API with the API key, falling back to an anonymous (public) request if the key is
-    /// rejected (401 invalid key / 403 missing the models:read scope). This keeps public model browsing working even when
-    /// the user's saved key is invalid or lacks model permissions, instead of returning zero results.</summary>
+    /// <summary>Sends a GET to the Hartsy API with the API key, and repeats it anonymously if the key is refused (401, or 403
+    /// without models:read), so public browsing still works with a bad or under-scoped key.</summary>
     private static async Task<(HttpStatusCode status, string body)> GetWithKeyFallbackAsync(string url, string apiKey)
     {
         async Task<(HttpStatusCode, string)> Send(string key)
@@ -208,7 +208,6 @@ public class HartsyProvider : IModelBrowserProvider
                 }
                 results.Add(resultItem);
             }
-
             JObject result = new()
             {
                 ["success"] = true,
@@ -298,11 +297,8 @@ public class HartsyProvider : IModelBrowserProvider
         }
     }
 
-    public static readonly ProviderCache DetailsCache = new(TimeSpan.FromMinutes(5));
-
-    /// <summary>Fetches full details (title, description, architecture, thumbnail, etc) for a single Hartsy model. Unlike
-    /// <see cref="GetModelDownloadAsync"/> this doesn't record a download analytics event, so it's safe to cache and to call
-    /// just to build a preview (eg when a raw Hartsy model page link is resolved from the manual downloader).</summary>
+    /// <summary>Fetches full details for a single Hartsy model. Unlike <see cref="GetModelDownloadAsync"/> it records no
+    /// download event, so it is safe to cache and to call for a preview.</summary>
     public async Task<JObject> GetModelDetailsAsync(Session session, string modelId)
     {
         if (string.IsNullOrWhiteSpace(modelId))
@@ -373,7 +369,8 @@ public class HartsyProvider : IModelBrowserProvider
         }
     }
 
-    /// <summary>Fetches download info for a specific model from the Hartsy API, which records analytics and provides hash/torrent data.</summary>
+    /// <summary>Fetches a model's download info: URL, hash, torrent, metadata sidecar and SwarmUI folder type. Hartsy records
+    /// each call as a download.</summary>
     public async Task<JObject> GetModelDownloadAsync(Session session, string modelId)
     {
         if (string.IsNullOrWhiteSpace(modelId))

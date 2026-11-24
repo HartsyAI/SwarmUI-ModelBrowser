@@ -5,11 +5,21 @@
     window.ModelBrowser.Providers = window.ModelBrowser.Providers || {};
 
     const modelTypeToSwarmSubtype = (civitType) => {
-        if (civitType === 'Checkpoint') return 'Stable-Diffusion';
-        if (['LORA', 'LoCon', 'LyCORIS'].includes(civitType)) return 'LoRA';
-        if (civitType === 'TextualInversion') return 'Embedding';
-        if (civitType === 'ControlNet') return 'ControlNet';
-        if (civitType === 'VAE') return 'VAE';
+        if (civitType === 'Checkpoint') {
+            return 'Stable-Diffusion';
+        }
+        if (['LORA', 'LoCon', 'LyCORIS'].includes(civitType)) {
+            return 'LoRA';
+        }
+        if (civitType === 'TextualInversion') {
+            return 'Embedding';
+        }
+        if (civitType === 'ControlNet') {
+            return 'ControlNet';
+        }
+        if (civitType === 'VAE') {
+            return 'VAE';
+        }
         return window.modelDownloader && modelDownloader.type ? modelDownloader.type.value : 'Stable-Diffusion';
     };
 
@@ -43,7 +53,9 @@
         /** Fetches CivitAI's live type/baseModel enums so the filter dropdowns track new architectures automatically. */
         getFilterOptions: async function () {
             const utils = window.ModelBrowser && window.ModelBrowser.Utils;
-            if (!utils || !utils.genericRequestAsync) return { types: [], baseModels: [] };
+            if (!utils || !utils.genericRequestAsync) {
+                return { types: [], baseModels: [] };
+            }
             const resp = await utils.genericRequestAsync('ModelBrowserCivitaiFilterOptions', {});
             if (resp && resp.success) {
                 return { types: resp.types || [], baseModels: resp.baseModels || [] };
@@ -80,9 +92,13 @@
         getSecondaryOptionsLazy: async function (item, primaryOption) {
             const versionId = primaryOption ? parseInt(primaryOption.value, 10)
                 : (typeof item.modelVersionId === 'number' ? item.modelVersionId : parseInt(item.modelVersionId, 10));
-            if (!versionId || isNaN(versionId)) return null;
+            if (!versionId || isNaN(versionId)) {
+                return null;
+            }
             const files = await this.getVersionFiles(versionId);
-            if (!Array.isArray(files) || files.length <= 1) return null;
+            if (!Array.isArray(files) || files.length <= 1) {
+                return null;
+            }
             return files.filter(f => f && f.downloadUrl).map(f => {
                 const parts = [f.format, f.precision, f.sizeLabel].filter(Boolean);
                 const sizeStr = f.fileSize && typeof fileSizeStringify === 'function' ? fileSizeStringify(f.fileSize) : '';
@@ -100,13 +116,18 @@
         /** Fetches every file (all format/precision variants) for a model version. */
         getVersionFiles: async function (modelVersionId) {
             const utils = window.ModelBrowser && window.ModelBrowser.Utils;
-            if (!utils || !utils.genericRequestAsync) return [];
+            if (!utils || !utils.genericRequestAsync) {
+                return [];
+            }
             const id = typeof modelVersionId === 'number' ? modelVersionId : parseInt(modelVersionId, 10);
-            if (!id || isNaN(id)) return [];
+            if (!id || isNaN(id)) {
+                return [];
+            }
             try {
                 const resp = await utils.genericRequestAsync('ModelBrowserCivitaiVersionFiles', { modelVersionId: id });
                 return (resp && resp.success && Array.isArray(resp.files)) ? resp.files : [];
-            } catch (e) {
+            }
+            catch (e) {
                 console.warn('[ModelBrowser] Failed to load CivitAI version files:', e);
                 return [];
             }
@@ -136,29 +157,37 @@
 
         suggestTags: async function (queryStr) {
             const utils = window.ModelBrowser && window.ModelBrowser.Utils;
-            if (!utils || !utils.genericRequestAsync) return [];
+            if (!utils || !utils.genericRequestAsync) {
+                return [];
+            }
             try {
                 const resp = await utils.genericRequestAsync('ModelBrowserCivitaiTags', {
                     query: queryStr || '',
                     limit: 12
                 });
                 return (resp && resp.success && Array.isArray(resp.tags)) ? resp.tags : [];
-            } catch {
+            }
+            catch {
                 return [];
             }
         },
 
-        /** Run a pre-flight check before downloading. Resolves to { ok, warning, requiresLogin, inEarlyAccess } or null on failure. */
+        /** Runs the pre-flight version check before downloading. Resolves to the ModelBrowserCivitaiVersionCheck response, or null on failure. */
         preflightCheck: async function (item) {
             const utils = window.ModelBrowser && window.ModelBrowser.Utils;
-            if (!utils || !utils.genericRequestAsync) return null;
+            if (!utils || !utils.genericRequestAsync) {
+                return null;
+            }
             const versionId = typeof item.modelVersionId === 'number' ? item.modelVersionId : parseInt(item.modelVersionId, 10);
-            if (!versionId || isNaN(versionId)) return null;
+            if (!versionId || isNaN(versionId)) {
+                return null;
+            }
             try {
                 return await utils.genericRequestAsync('ModelBrowserCivitaiVersionCheck', {
                     modelVersionId: versionId
                 });
-            } catch {
+            }
+            catch {
                 return null;
             }
         },
@@ -206,12 +235,22 @@
                     badges.push({ label: `${translate('Early Access until')} ${dateStr}`, kind: 'warn' });
                 }
             }
-            if (item.mode === 'Archived') badges.push({ label: translate('Archived'), kind: 'muted' });
-            if (item.mode === 'TakenDown') badges.push({ label: translate('Taken Down'), kind: 'danger' });
+            if (item.mode === 'Archived') {
+                badges.push({ label: translate('Archived'), kind: 'muted' });
+            }
+            if (item.mode === 'TakenDown') {
+                badges.push({ label: translate('Taken Down'), kind: 'danger' });
+            }
             const nsfwLevel = typeof item.nsfwLevel === 'number' ? item.nsfwLevel : 0;
-            if (nsfwLevel >= 16) badges.push({ label: 'XXX', kind: 'danger' });
-            else if (nsfwLevel >= 8) badges.push({ label: 'X', kind: 'warn' });
-            else if (nsfwLevel >= 4) badges.push({ label: 'R', kind: 'warn' });
+            if (nsfwLevel >= 16) {
+                badges.push({ label: 'XXX', kind: 'danger' });
+            }
+            else if (nsfwLevel >= 8) {
+                badges.push({ label: 'X', kind: 'warn' });
+            }
+            else if (nsfwLevel >= 4) {
+                badges.push({ label: 'R', kind: 'warn' });
+            }
             if (typeof item.thumbsUpCount === 'number' && item.thumbsUpCount > 0) {
                 badges.push({ label: `\u{1F44D} ${item.thumbsUpCount}`, kind: 'info' });
             }
@@ -248,7 +287,9 @@
                 examplesBtn.className = 'sui_popover_model_button';
                 examplesBtn.innerText = translate('Load Example Prompts...');
                 examplesBtn.onclick = async () => {
-                    if (examplesBtn.dataset.loading === 'true') return;
+                    if (examplesBtn.dataset.loading === 'true') {
+                        return;
+                    }
                     examplesBtn.dataset.loading = 'true';
                     examplesBtn.innerText = translate('Loading...');
                     try {
@@ -267,7 +308,9 @@
                         let added = 0;
                         for (const ex of resp.images) {
                             const prompt = (ex && ex.prompt) ? `${ex.prompt}` : '';
-                            if (!prompt) continue;
+                            if (!prompt) {
+                                continue;
+                            }
                             const promptBtn = document.createElement('div');
                             promptBtn.className = 'sui_popover_model_button';
                             const short = prompt.length > 60 ? prompt.slice(0, 60) + '\u2026' : prompt;
@@ -282,7 +325,8 @@
                             added++;
                         }
                         examplesBtn.innerText = added > 0 ? `${translate('Loaded')} ${added} ${translate('example prompts')}` : translate('No example prompts found');
-                    } catch {
+                    }
+                    catch {
                         examplesBtn.innerText = translate('Failed to load examples');
                     }
                 };
