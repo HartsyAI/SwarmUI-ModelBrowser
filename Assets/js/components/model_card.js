@@ -15,11 +15,13 @@
         const primaryOptions = (typeof provider.getPrimaryOptions === 'function') ? (provider.getPrimaryOptions(item) || []) : [];
         let primarySelect = null;
         let formatHolder = null;
+        let formatGeneration = 0;
 
         const resetFormatControl = () => {
             if (!formatHolder) {
                 return;
             }
+            const generation = ++formatGeneration;
             formatHolder.innerHTML = '';
             const toggle = document.createElement('span');
             toggle.className = 'basic-button model-browser-smallbtn model-browser-model-format-toggle';
@@ -33,6 +35,10 @@
                 try {
                     const currentPrimary = primarySelect ? primaryOptions.find(o => o.value === primarySelect.value) : null;
                     const formats = await provider.getSecondaryOptionsLazy(item, currentPrimary);
+                    // A version picked while this loaded has reset the control; these formats belong to the old version.
+                    if (generation !== formatGeneration) {
+                        return;
+                    }
                     if (!Array.isArray(formats) || formats.length <= 1) {
                         toggle.textContent = formats && formats.length === 1 ? translate('Only one format available') : translate('No formats found');
                         return;
