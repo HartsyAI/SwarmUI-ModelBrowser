@@ -199,7 +199,7 @@
                     folders.appendChild(opt);
                 }
                 folders.value = safe;
-                // Keep selectedFolder in sync too, or folder_browser_injection.js's run() wrapper overwrites this on download.
+                // Keep selectedFolder in sync too: resolveSelectedFolder() reads it once the folder tree UI is active.
                 if (window.modelDownloader) {
                     modelDownloader.selectedFolder = safe;
                     if (typeof modelDownloader.updateSelectedFolderDisplay === 'function') {
