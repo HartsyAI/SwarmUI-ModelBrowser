@@ -263,17 +263,20 @@ public static class DownloadManager
                 Logs.Debug($"[ModelBrowser] failed to inject thumbnail into metadata for '{name}': {ex.ReadableString()}");
             }
         }
+        Directory.CreateDirectory(Path.GetDirectoryName(outPath));
         long nowMs = NowMs();
+        string id = Guid.NewGuid().ToString("N");
         DownloadRecord rec = new()
         {
-            Id = Guid.NewGuid().ToString("N"),
+            Id = id,
             UserId = session.User.UserID,
             Url = url,
             Type = type,
             Name = name,
             Extension = extension,
             OutPath = outPath,
-            PartPath = $"{outPath}.edl.part",
+            // Each download writes its own part file, so two users fetching the same model never share one.
+            PartPath = $"{outPath}.{id}.edl.part",
             Metadata = metadata,
             Image = image,
             State = DownloadState.Downloading,
@@ -282,17 +285,13 @@ public static class DownloadManager
         };
         lock (StartLock)
         {
-            // Any user's unfinished download to this path owns the part file beside it. A finished one whose file is gone does not
-            // block, and a finished file still on disk is refused above.
-            DownloadRecord existing = Records.Values.FirstOrDefault(r => r.State != DownloadState.Completed && string.Equals(r.OutPath, outPath, StringComparison.OrdinalIgnoreCase));
-            if (existing is not null)
+            // A finished download whose file is gone from disk must not block a new one. A finished file still on disk is refused above.
+            if (Records.Values.Any(r => r.UserId == session.User.UserID && r.State != DownloadState.Completed && string.Equals(r.OutPath, outPath, StringComparison.OrdinalIgnoreCase)))
             {
-                string message = existing.UserId == session.User.UserID ? $"A download to '{outPath}' already exists - resume or clear it from the Downloads panel first." : $"Another user is already downloading to '{outPath}'.";
-                return new JObject() { ["error"] = message };
+                return new JObject() { ["error"] = $"A download to '{outPath}' already exists - resume or clear it from the Downloads panel first." };
             }
             Records[rec.Id] = rec;
         }
-        Directory.CreateDirectory(Path.GetDirectoryName(outPath));
         SaveRecord(rec);
         Kick(rec, session);
         return new JObject() { ["success"] = true, ["download"] = rec.ToNetObject() };
@@ -318,10 +317,6 @@ public static class DownloadManager
             if (rec.State == DownloadState.Completed)
             {
                 return new JObject() { ["error"] = "This download already completed." };
-            }
-            if (Records.Values.Any(r => r != rec && r.State == DownloadState.Downloading && string.Equals(r.OutPath, rec.OutPath, StringComparison.OrdinalIgnoreCase)))
-            {
-                return new JObject() { ["error"] = $"Another download to '{rec.OutPath}' is running." };
             }
             rec.State = DownloadState.Downloading;
         }
@@ -373,8 +368,8 @@ public static class DownloadManager
         {
             return new JObject() { ["error"] = "Cancel the download before clearing it." };
         }
-        // A completed download's partial file was already moved to OutPath, so its PartPath may now belong to a newer
-        // download to the same destination. Only an unfinished download owns its partial file.
+        // A completed download's part file was moved into place. An older record's PartPath can be shared with a newer
+        // download to the same destination, so only an unfinished download owns its part file.
         try
         {
             if (rec.State != DownloadState.Completed && File.Exists(rec.PartPath))
