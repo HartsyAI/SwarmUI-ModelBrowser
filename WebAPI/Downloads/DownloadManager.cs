@@ -141,11 +141,12 @@ public static class DownloadManager
                 }
                 continue;
             }
-            if (rec.State == DownloadState.Downloading)
+            bool wasRunning = rec.State == DownloadState.Downloading;
+            if (wasRunning)
             {
                 rec.State = DownloadState.Paused;
             }
-            if (!File.Exists(rec.PartPath) && File.Exists(rec.OutPath))
+            if (wasRunning && !File.Exists(rec.PartPath) && File.Exists(rec.OutPath) && (rec.TotalBytes <= 0 || new FileInfo(rec.OutPath).Length == rec.TotalBytes))
             {
                 // The part file was moved into place, but the process stopped before the record was marked Completed.
                 rec.State = DownloadState.Completed;
@@ -328,9 +329,7 @@ public static class DownloadManager
             }
             Records[rec.Id] = rec;
         }
-        SaveRecord(rec);
-        Kick(rec, session);
-        return new JObject() { ["success"] = true, ["download"] = rec.ToNetObject() };
+        return Launch(rec, session);
     }
 
     /// <summary>Resumes a paused or errored download from its saved byte offset. A no-op if it is already downloading.</summary>
@@ -369,8 +368,25 @@ public static class DownloadManager
         rec.ErrorMessage = null;
         rec.TransientNote = null;
         rec.UpdatedAtMs = NowMs();
-        SaveRecord(rec);
-        Kick(rec, session);
+        return Launch(rec, session);
+    }
+
+    /// <summary>Saves a download that was just claimed as Downloading and starts its transfer. If either step fails the record
+    /// is marked Errored, since a Downloading record with no transfer could never be cancelled or cleared.</summary>
+    private static JObject Launch(DownloadRecord rec, Session session)
+    {
+        try
+        {
+            SaveRecord(rec);
+            Kick(rec, session);
+        }
+        catch (Exception ex)
+        {
+            rec.State = DownloadState.Errored;
+            rec.ErrorMessage = "Failed to start the download. See the server log.";
+            Logs.Error($"[ModelBrowser] failed to start download '{rec.Name}': {ex.ReadableString()}");
+            return new JObject() { ["error"] = rec.ErrorMessage };
+        }
         return new JObject() { ["success"] = true, ["download"] = rec.ToNetObject() };
     }
 
@@ -463,10 +479,8 @@ public static class DownloadManager
         if (isResume)
         {
             request.Headers.Range = new RangeHeaderValue(rec.DownloadedBytes, null);
-            // A strong ETag or Last-Modified lets the server resume. A weak ETag only makes it send the whole file again, which is
-            // still safer than a bare Range that a changed file would answer with mismatched bytes.
-            bool strongEtag = !string.IsNullOrEmpty(rec.ETag) && !rec.ETag.StartsWith("W/");
-            string ifRange = strongEtag ? rec.ETag : (string.IsNullOrEmpty(rec.LastModified) ? rec.ETag : rec.LastModified);
+            // If-Range takes a strong ETag or a date; RunDownloadAsync does not resume a file it has only a weak ETag for.
+            string ifRange = HasStrongEtag(rec) ? rec.ETag : rec.LastModified;
             if (!string.IsNullOrEmpty(ifRange))
             {
                 request.Headers.TryAddWithoutValidation("If-Range", ifRange);
@@ -498,6 +512,12 @@ public static class DownloadManager
         throw new SwarmReadableErrorException(message);
     }
 
+    /// <summary>Whether the stored ETag is strong, the only kind If-Range accepts.</summary>
+    private static bool HasStrongEtag(DownloadRecord rec)
+    {
+        return !string.IsNullOrEmpty(rec.ETag) && !rec.ETag.StartsWith("W/");
+    }
+
     /// <summary>Whether a transfer answer's body starts at the given byte: a 206 for that offset, or a 200 when it is zero.</summary>
     private static bool StartsAt(HttpResponseMessage response, long offset)
     {
@@ -520,6 +540,15 @@ public static class DownloadManager
                 // Every byte is already here, and a Range request past the end would only be refused with 416.
                 CompleteDownload(rec);
                 return;
+            }
+            if (isResume && !HasStrongEtag(rec) && string.IsNullOrEmpty(rec.LastModified) && !string.IsNullOrEmpty(rec.ETag))
+            {
+                // A client must not send a weak ETag in If-Range, and a bare Range could splice a changed file, so start over.
+                rec.TransientNote = "The server offers no way to check that this file is unchanged, so this download restarted from the beginning.";
+                Logs.Info($"[ModelBrowser] download '{rec.Name}' has only a weak ETag; restarting from scratch.");
+                isResume = false;
+                rec.DownloadedBytes = 0;
+                rec.TotalBytes = 0;
             }
             response = await SendDownloadAsync(requestUrl, headers, rec, isResume, linked.Token);
             string restartReason = null;

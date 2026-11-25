@@ -108,7 +108,7 @@ An in-progress download can be **Cancel**ed, which keeps the partial file so it 
 
 ![A finished download](Assets/screenshots/download_complete.webp)
 
-Finished downloads turn green and can be **Dismiss**ed. They are hidden by default; tick **Show completed** to keep them in the list.
+Finished downloads turn green and can be **Dismiss**ed. They are hidden by default; tick **Show completed** to keep them in the list. A finished download whose metadata or model-list refresh failed stays visible with a note until you dismiss it.
 
 ## Providers
 
