@@ -28,13 +28,13 @@ Build controls from SwarmUI's own classes and add extension styling only on top:
 |---|---|
 | Buttons | `basic-button` |
 | Dropdowns and text inputs | `auto-dropdown`, `auto-text`, `auto-text-wide` |
-| Panels | Bootstrap `card`, `card-header`, `card-body` (as core uses them) |
-| Model cards and their menu | `model-block`, `model-descblock`, `model-block-menu-button`, `card-img-top` |
+| Panels | Bootstrap `card`, `card-header`, `card-body`, `card-img-top` (as core uses them) |
+| Model cards and their menu | `model-block`, `model-descblock`, `model-block-menu-button` |
 | Popover menus | `sui-popover`, `sui_popover_model_button`, opened with `doPopover()` |
 | Result grids | `browser-content-container` |
 
 Extension-only classes start with `model-browser-`. Style SwarmUI classes only beneath a `model-browser-` container, so
-the rest of SwarmUI is never affected. Select by class, not by element ID, as SwarmUI's own CSS does.
+the rest of SwarmUI is never affected. Select by class, not by element ID, as SwarmUI's contributor guidelines ask.
 
 ## Reuse SwarmUI's JS helpers
 

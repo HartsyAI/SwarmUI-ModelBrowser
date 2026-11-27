@@ -309,7 +309,7 @@ Hugging Face images are fetched lazily and aren't guaranteed for every repo; Civ
 
 ## Contributing
 
-Contributions welcome. Areas that would help most:
+Contributions welcome. Before changing the UI, read [DESIGN.md](DESIGN.md): it matches SwarmUI's colors and classes. Areas that would help most:
 - Additional provider integrations
 - Download history and version tracking (planned; `Assets/js/download_history.js` reserves the namespace)
 - Surfacing recent destination folders in the folder tree (the last 12 are still recorded to `localStorage`, but nothing displays them since the folder tree replaced core's dropdown)
