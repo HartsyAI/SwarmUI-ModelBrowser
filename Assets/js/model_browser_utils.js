@@ -6,6 +6,10 @@
     window.ModelBrowser.Providers = window.ModelBrowser.Providers || {};
     window.ModelBrowser.Components = window.ModelBrowser.Components || {};
 
+    /** Counts URL loads into the manual downloader (every urlInput call, typed or programmatic), so a result that arrives late
+     * can tell whether another URL was loaded since it started. Core's own rewrites of the URL field do not count. */
+    window.ModelBrowser.Utils.urlLoads = 0;
+
     /** Promise wrapper around SwarmUI's callback-based genericRequest. */
     window.ModelBrowser.Utils.genericRequestAsync = function genericRequestAsync(url, in_data) {
         return new Promise((resolve, reject) => {

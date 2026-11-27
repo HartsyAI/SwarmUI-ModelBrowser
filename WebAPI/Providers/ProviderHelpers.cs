@@ -1,6 +1,8 @@
 using Newtonsoft.Json.Linq;
+using SwarmUI.Accounts;
 using SwarmUI.Backends;
 using System.Collections.Concurrent;
+using System.Globalization;
 using System.IO;
 using System.Net.Http;
 using System.Web;
@@ -11,6 +13,17 @@ namespace Hartsy.Extensions.Providers;
 public static class ProviderHttpClient
 {
     public static readonly HttpClient Client = NetworkBackendUtils.MakeHttpClient();
+}
+
+/// <summary>Builds the part of a provider cache key that names whose answer it is.</summary>
+public static class ProviderCacheOwner
+{
+    /// <summary>"anon" for a request without a key, whose answer is the same for everyone; otherwise the user and their current
+    /// key, so a replaced key does not keep the old key's answer.</summary>
+    public static string For(Session session, string apiKey)
+    {
+        return string.IsNullOrEmpty(apiKey) ? "anon" : $"{session.User.UserID}:{apiKey.GetHashCode()}";
+    }
 }
 
 /// <summary>Simple TTL-based cache backed by a <see cref="ConcurrentDictionary{TKey,TValue}"/>.</summary>
@@ -58,22 +71,46 @@ public class ProviderCache(TimeSpan ttl)
 /// <summary>Builds normalized model result JObjects from provider-specific data.</summary>
 public static class ModelResultBuilder
 {
-    /// <summary>Picks a CivitAI version's first .safetensors, .sft or .gguf file, else its first file.</summary>
+    /// <summary>Whether core would download this CivitAI file as the model: .safetensors, .sft or .gguf, and not a bundled VAE or
+    /// text encoder, which core skips.</summary>
+    public static bool IsModelCandidate(JObject file)
+    {
+        string fname = file.Value<string>("name") ?? "";
+        string type = file.Value<string>("type") ?? "";
+        bool loadable = fname.EndsWith(".safetensors", StringComparison.OrdinalIgnoreCase) || fname.EndsWith(".sft", StringComparison.OrdinalIgnoreCase) || fname.EndsWith(".gguf", StringComparison.OrdinalIgnoreCase);
+        return loadable && type != "VAE" && type != "Text Encoder";
+    }
+
+    /// <summary>Picks a CivitAI version's primary file if it is a <see cref="IsModelCandidate"/>, else its first such file, else its
+    /// first file.</summary>
     public static JObject SelectBestFile(JArray files)
     {
         if (files is null || files.Count == 0)
         {
             return null;
         }
-        foreach (JObject f in files.OfType<JObject>())
+        return files.OfType<JObject>().FirstOrDefault(f => f.Value<bool?>("primary") == true && IsModelCandidate(f))
+            ?? files.OfType<JObject>().FirstOrDefault(IsModelCandidate)
+            ?? files.OfType<JObject>().FirstOrDefault();
+    }
+
+    /// <summary>Reads a CivitAI timestamp as ISO 8601 UTC, or "" when there is none. JObject.Parse turns an ISO string into a date
+    /// that reads back without its zone, which a browser would then take as local time.</summary>
+    public static string ReadUtcTimestamp(JToken token)
+    {
+        if (token is null || token.Type == JTokenType.Null)
         {
-            string fname = f.Value<string>("name") ?? "";
-            if (fname.EndsWith(".safetensors", StringComparison.OrdinalIgnoreCase) || fname.EndsWith(".sft", StringComparison.OrdinalIgnoreCase) || fname.EndsWith(".gguf", StringComparison.OrdinalIgnoreCase))
-            {
-                return f;
-            }
+            return "";
         }
-        return files.OfType<JObject>().FirstOrDefault();
+        if (token.Type == JTokenType.Date)
+        {
+            DateTime value = token.Value<DateTime>();
+            DateTime utc = value.Kind == DateTimeKind.Unspecified ? DateTime.SpecifyKind(value, DateTimeKind.Utc) : value.ToUniversalTime();
+            return utc.ToString("o", CultureInfo.InvariantCulture);
+        }
+        string text = token.Value<string>() ?? "";
+        return DateTimeOffset.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out DateTimeOffset parsed)
+            ? parsed.UtcDateTime.ToString("o", CultureInfo.InvariantCulture) : "";
     }
 
     /// <summary>Build a normalized model result from a CivitAI model object and its best version.</summary>
@@ -95,7 +132,7 @@ public static class ModelResultBuilder
         long modelVersionId = bestVersion?.Value<long?>("id") ?? 0;
         string versionName = bestVersion?.Value<string>("name") ?? "";
         string versionBaseModel = bestVersion?.Value<string>("baseModel") ?? "";
-        string earlyAccessEndsAt = bestVersion?.Value<string>("earlyAccessEndsAt") ?? "";
+        string earlyAccessEndsAt = ReadUtcTimestamp(bestVersion?["earlyAccessEndsAt"]);
         string air = bestVersion?.Value<string>("air") ?? "";
         JArray trainedWords = bestVersion?["trainedWords"] as JArray ?? [];
         JArray versionFiles = bestVersion?["files"] as JArray ?? [];
@@ -133,8 +170,9 @@ public static class ModelResultBuilder
                     ["fileName"] = vFile.Value<string>("name") ?? "",
                     ["downloadUrl"] = vUrl,
                     ["fileSize"] = vFile.Value<long?>("sizeKB") is long vKb ? (JToken)(vKb * 1024) : null,
-                    ["earlyAccessEndsAt"] = ver.Value<string>("earlyAccessEndsAt") ?? "",
-                    ["air"] = ver.Value<string>("air") ?? ""
+                    ["earlyAccessEndsAt"] = ReadUtcTimestamp(ver["earlyAccessEndsAt"]),
+                    ["air"] = ver.Value<string>("air") ?? "",
+                    ["trainedWords"] = ver["trainedWords"] as JArray ?? []
                 });
             }
         }

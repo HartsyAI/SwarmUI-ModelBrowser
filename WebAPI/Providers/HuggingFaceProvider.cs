@@ -363,12 +363,13 @@ public class HuggingFaceProvider : IModelBrowserProvider
         {
             return new JObject() { ["success"] = false, ["error"] = "Missing modelId." };
         }
-        string cacheKey = $"hf-img:{modelId}";
+        string apiKey = GetApiKey(session);
+        // A token can reach a gated or private repo, so its preview must not be served to other users.
+        string cacheKey = $"hf-img:{ProviderCacheOwner.For(session, apiKey)}:{modelId}";
         if (ImageCache.TryGet(cacheKey, out JObject cached))
         {
             return cached;
         }
-        string apiKey = GetApiKey(session);
         try
         {
             string image = "";

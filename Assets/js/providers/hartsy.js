@@ -219,17 +219,6 @@
             if (!item.modelId || !utils || !utils.genericRequestAsync) {
                 return;
             }
-            if (item.torrent && item.torrent.magnetLink) {
-                const magnetBtn = document.createElement('div');
-                magnetBtn.className = 'sui_popover_model_button';
-                magnetBtn.innerText = translate('Copy Magnet Link');
-                magnetBtn.onclick = () => {
-                    if (typeof copyText === 'function') {
-                        copyText(item.torrent.magnetLink);
-                    }
-                };
-                menuDiv.appendChild(magnetBtn);
-            }
             const versionsBtn = document.createElement('div');
             versionsBtn.className = 'sui_popover_model_button';
             versionsBtn.innerText = translate('Load versions...');

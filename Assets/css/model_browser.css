@@ -92,7 +92,7 @@
     width: 100%;
 }
 
-.model-browser-downloads-zone:not(.model-browser-show-completed) .model-browser-download-card.model-browser-state-completed {
+.model-browser-downloads-zone:not(.model-browser-show-completed) .model-browser-download-card.model-browser-state-completed:not(.model-browser-has-note) {
     display: none;
 }
 

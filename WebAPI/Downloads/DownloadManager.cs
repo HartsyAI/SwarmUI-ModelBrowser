@@ -34,6 +34,10 @@ public static class DownloadManager
 
     private const int ReadBufferSize = 256 * 1024;
 
+    /// <summary>Held while Start, Resume or Clear checks a download's state and acts on it, so two requests never run two
+    /// transfers into one file or delete a file a transfer is writing.</summary>
+    private static readonly object StartLock = new();
+
     /// <summary>Redirects one download may take before it is refused.</summary>
     private const int MaxDownloadRedirects = 10;
 
@@ -137,12 +141,22 @@ public static class DownloadManager
                 }
                 continue;
             }
-            if (rec.State == DownloadState.Downloading)
+            bool wasRunning = rec.State == DownloadState.Downloading;
+            if (wasRunning)
             {
                 rec.State = DownloadState.Paused;
             }
-            // The stored count is saved only every ProgressPersistIntervalMs, so the part file decides where Append resumes.
-            rec.DownloadedBytes = File.Exists(rec.PartPath) ? new FileInfo(rec.PartPath).Length : 0;
+            if (wasRunning && !File.Exists(rec.PartPath) && File.Exists(rec.OutPath) && (rec.TotalBytes <= 0 || new FileInfo(rec.OutPath).Length == rec.TotalBytes))
+            {
+                // The part file was moved into place, but the process stopped before the record was marked Completed.
+                rec.State = DownloadState.Completed;
+                rec.DownloadedBytes = new FileInfo(rec.OutPath).Length;
+            }
+            else
+            {
+                // The stored count is saved only every ProgressPersistIntervalMs, so the part file decides where Append resumes.
+                rec.DownloadedBytes = File.Exists(rec.PartPath) ? new FileInfo(rec.PartPath).Length : 0;
+            }
             Records[rec.Id] = rec;
             SaveRecord(rec);
         }
@@ -157,7 +171,27 @@ public static class DownloadManager
             Logs.Warning($"[ModelBrowser] could not persist download '{rec.Id}' - user '{rec.UserId}' not found.");
             return;
         }
-        user.SaveGenericData(GenericDataName, rec.Id, rec.ToManifestObject().ToString());
+        lock (StartLock)
+        {
+            // A transfer still settling after a Clear must not write the cleared record back.
+            if (!IsTracked(rec))
+            {
+                return;
+            }
+            user.SaveGenericData(GenericDataName, rec.Id, rec.ToManifestObject().ToString());
+        }
+    }
+
+    /// <summary>Whether this exact record is still the one tracked under its ID, so it has not been cleared.</summary>
+    private static bool IsTracked(DownloadRecord rec)
+    {
+        return Records.TryGetValue(rec.Id, out DownloadRecord current) && ReferenceEquals(current, rec);
+    }
+
+    /// <summary>Whether another unfinished record writes the same part file. Records from before per-download part files can share one.</summary>
+    private static bool SharesPartFile(DownloadRecord rec)
+    {
+        return Records.Values.Any(r => r != rec && r.State != DownloadState.Completed && string.Equals(r.PartPath, rec.PartPath, StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>Removes one download record from its owning user's generic-data store.</summary>
@@ -245,11 +279,6 @@ public static class DownloadManager
         {
             return new JObject() { ["error"] = $"A model already exists at '{outPath}' - rename it or choose a different destination." };
         }
-        // A finished download whose file is gone from disk must not block a new one. A finished file still on disk is refused above.
-        if (Records.Values.Any(r => r.UserId == session.User.UserID && r.State != DownloadState.Completed && string.Equals(r.OutPath, outPath, StringComparison.OrdinalIgnoreCase)))
-        {
-            return new JObject() { ["error"] = $"A download to '{outPath}' already exists - resume or clear it from the Downloads panel first." };
-        }
         // SwarmUI shows a sidecar thumbnail only as a data URI and ignores a plain URL, so only a data URI is written. A URL
         // would also replace the thumbnail the sidecar already carries.
         if (image is not null && image.StartsWith("data:image/") && !string.IsNullOrWhiteSpace(metadata))
@@ -267,26 +296,40 @@ public static class DownloadManager
         }
         Directory.CreateDirectory(Path.GetDirectoryName(outPath));
         long nowMs = NowMs();
+        string id = Guid.NewGuid().ToString("N");
         DownloadRecord rec = new()
         {
-            Id = Guid.NewGuid().ToString("N"),
+            Id = id,
             UserId = session.User.UserID,
             Url = url,
             Type = type,
             Name = name,
             Extension = extension,
             OutPath = outPath,
-            PartPath = $"{outPath}.edl.part",
+            // Each download writes its own part file, so two users fetching the same model never share one.
+            PartPath = $"{outPath}.{id[..8]}.edl.part",
             Metadata = metadata,
             Image = image,
             State = DownloadState.Downloading,
             CreatedAtMs = nowMs,
             UpdatedAtMs = nowMs
         };
-        Records[rec.Id] = rec;
-        SaveRecord(rec);
-        Kick(rec, session);
-        return new JObject() { ["success"] = true, ["download"] = rec.ToNetObject() };
+        lock (StartLock)
+        {
+            // A finished download whose file is gone from disk must not block a new one. A finished file still on disk is refused above.
+            if (Records.Values.Any(r => r.UserId == session.User.UserID && r.State != DownloadState.Completed && string.Equals(r.OutPath, outPath, StringComparison.OrdinalIgnoreCase)))
+            {
+                return new JObject() { ["error"] = $"A download to '{outPath}' already exists - resume or clear it from the Downloads panel first." };
+            }
+            // Only one of two transfers to a path can be moved into place, so wait for another user's running one. Their paused
+            // downloads do not block, since each download has its own part file.
+            if (Records.Values.Any(r => r.State == DownloadState.Downloading && string.Equals(r.OutPath, outPath, StringComparison.OrdinalIgnoreCase)))
+            {
+                return new JObject() { ["error"] = $"Another user is downloading a model to '{outPath}' right now. Try again once it finishes." };
+            }
+            Records[rec.Id] = rec;
+        }
+        return Launch(rec, session);
     }
 
     /// <summary>Resumes a paused or errored download from its saved byte offset. A no-op if it is already downloading.</summary>
@@ -296,20 +339,54 @@ public static class DownloadManager
         {
             return error;
         }
-        if (rec.State == DownloadState.Downloading)
+        if (File.Exists(rec.OutPath) && rec.State != DownloadState.Completed)
         {
-            return new JObject() { ["success"] = true, ["download"] = rec.ToNetObject() };
+            return new JObject() { ["error"] = $"A model already exists at '{rec.OutPath}' - move it, or clear this download." };
         }
-        if (rec.State == DownloadState.Completed)
+        lock (StartLock)
         {
-            return new JObject() { ["error"] = "This download already completed." };
+            if (!IsTracked(rec))
+            {
+                return new JObject() { ["error"] = "Download not found." };
+            }
+            if (rec.State == DownloadState.Downloading)
+            {
+                return new JObject() { ["success"] = true, ["download"] = rec.ToNetObject() };
+            }
+            if (rec.State == DownloadState.Completed)
+            {
+                return new JObject() { ["error"] = "This download already completed." };
+            }
+            // Only one of two transfers to a path can be moved into place, and records from before per-download part files
+            // can share one, so wait for any other running download to this path.
+            if (Records.Values.Any(r => r != rec && r.State == DownloadState.Downloading && string.Equals(r.OutPath, rec.OutPath, StringComparison.OrdinalIgnoreCase)))
+            {
+                return new JObject() { ["error"] = $"Another download to '{rec.OutPath}' is running. Try again once it finishes." };
+            }
+            rec.State = DownloadState.Downloading;
         }
-        rec.State = DownloadState.Downloading;
         rec.ErrorMessage = null;
         rec.TransientNote = null;
         rec.UpdatedAtMs = NowMs();
-        SaveRecord(rec);
-        Kick(rec, session);
+        return Launch(rec, session);
+    }
+
+    /// <summary>Saves a download that was just claimed as Downloading and starts its transfer. If either step fails the record
+    /// is marked Errored, since a Downloading record with no transfer could never be cancelled or cleared.</summary>
+    private static JObject Launch(DownloadRecord rec, Session session)
+    {
+        try
+        {
+            SaveRecord(rec);
+            Kick(rec, session);
+        }
+        catch (Exception ex)
+        {
+            rec.State = DownloadState.Errored;
+            rec.ErrorMessage = "Failed to start the download. See the server log.";
+            Logs.Error($"[ModelBrowser] failed to start download '{rec.Name}': {ex.ReadableString()}");
+            return new JObject() { ["error"] = rec.ErrorMessage };
+        }
         return new JObject() { ["success"] = true, ["download"] = rec.ToNetObject() };
     }
 
@@ -349,25 +426,28 @@ public static class DownloadManager
         {
             return error;
         }
-        if (rec.State == DownloadState.Downloading)
+        lock (StartLock)
         {
-            return new JObject() { ["error"] = "Cancel the download before clearing it." };
-        }
-        // A completed download's partial file was already moved to OutPath, so its PartPath may now belong to a newer
-        // download to the same destination. Only an unfinished download owns its partial file.
-        try
-        {
-            if (rec.State != DownloadState.Completed && File.Exists(rec.PartPath))
+            if (rec.State == DownloadState.Downloading)
             {
-                File.Delete(rec.PartPath);
+                return new JObject() { ["error"] = "Cancel the download before clearing it." };
             }
+            // A completed download's part file was moved into place. An older record's PartPath can be shared with a newer
+            // download to the same destination, so only an unfinished download owns its part file.
+            try
+            {
+                if (rec.State != DownloadState.Completed && File.Exists(rec.PartPath) && !SharesPartFile(rec))
+                {
+                    File.Delete(rec.PartPath);
+                }
+            }
+            catch (Exception ex)
+            {
+                return new JObject() { ["error"] = $"Failed to delete partial file: {ex.Message}" };
+            }
+            Records.TryRemove(rec.Id, out _);
+            RemoveRecord(rec.UserId, rec.Id);
         }
-        catch (Exception ex)
-        {
-            return new JObject() { ["error"] = $"Failed to delete partial file: {ex.Message}" };
-        }
-        Records.TryRemove(rec.Id, out _);
-        RemoveRecord(rec.UserId, rec.Id);
         return new JObject() { ["success"] = true };
     }
 
@@ -399,7 +479,8 @@ public static class DownloadManager
         if (isResume)
         {
             request.Headers.Range = new RangeHeaderValue(rec.DownloadedBytes, null);
-            string ifRange = rec.ETag ?? rec.LastModified;
+            // If-Range takes a strong ETag or a date; RunDownloadAsync does not resume a file it has only a weak ETag for.
+            string ifRange = HasStrongEtag(rec) ? rec.ETag : rec.LastModified;
             if (!string.IsNullOrEmpty(ifRange))
             {
                 request.Headers.TryAddWithoutValidation("If-Range", ifRange);
@@ -408,47 +489,113 @@ public static class DownloadManager
         return request;
     }
 
+    /// <summary>Throws a readable error for a transfer answer other than 200 or 206, with the refusal reason and key hint for a 401 or 403.</summary>
+    private static async Task EnsureTransferResponseAsync(HttpResponseMessage response, string authHint)
+    {
+        if (response.StatusCode is HttpStatusCode.OK or HttpStatusCode.PartialContent)
+        {
+            return;
+        }
+        string message = $"Failed to download: got response code {(int)response.StatusCode} {response.StatusCode}";
+        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+        {
+            string reason = await Utilities.GetResponseErrorReason(response);
+            if (reason is not null)
+            {
+                message += $" (\"{reason}\")";
+            }
+            if (authHint is not null)
+            {
+                message += $". {authHint}";
+            }
+        }
+        throw new SwarmReadableErrorException(message);
+    }
+
+    /// <summary>Whether the stored ETag is strong, the only kind If-Range accepts.</summary>
+    private static bool HasStrongEtag(DownloadRecord rec)
+    {
+        return !string.IsNullOrEmpty(rec.ETag) && !rec.ETag.StartsWith("W/");
+    }
+
+    /// <summary>Whether a transfer answer's body starts at the given byte: a 206 for that offset, or a 200 when it is zero.</summary>
+    private static bool StartsAt(HttpResponseMessage response, long offset)
+    {
+        return response.StatusCode == HttpStatusCode.PartialContent ? response.Content.Headers.ContentRange?.From == offset : offset == 0;
+    }
+
     /// <summary>Runs one transfer, resuming when the part file already holds bytes. Detached from any request; only
     /// `rec.Canceller` or shutdown stops it.</summary>
     private static async Task RunDownloadAsync(DownloadRecord rec, string requestUrl, Dictionary<string, string> headers, string authHint)
     {
         CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(Program.GlobalProgramCancel, rec.Canceller.Token);
+        HttpResponseMessage response = null;
         try
         {
-            bool isResume = rec.DownloadedBytes > 0 && File.Exists(rec.PartPath);
-            using HttpResponseMessage response = await SendDownloadAsync(requestUrl, headers, rec, isResume, linked.Token);
-            if (response.StatusCode != HttpStatusCode.OK && response.StatusCode != HttpStatusCode.PartialContent)
+            // Append continues at the end of the part file, which a cancelled write can leave past the counted bytes.
+            rec.DownloadedBytes = rec.DownloadedBytes > 0 && File.Exists(rec.PartPath) ? new FileInfo(rec.PartPath).Length : 0;
+            bool isResume = rec.DownloadedBytes > 0;
+            if (isResume && rec.DownloadedBytes == rec.TotalBytes)
             {
-                string message = $"Failed to download: got response code {(int)response.StatusCode} {response.StatusCode}";
-                if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
-                {
-                    string reason = await Utilities.GetResponseErrorReason(response);
-                    if (reason is not null)
-                    {
-                        message += $" (\"{reason}\")";
-                    }
-                    if (authHint is not null)
-                    {
-                        message += $". {authHint}";
-                    }
-                }
-                throw new SwarmReadableErrorException(message);
+                // Every byte is already here, and a Range request past the end would only be refused with 416.
+                CompleteDownload(rec);
+                return;
             }
-            bool serverHonoredRange = response.StatusCode == HttpStatusCode.PartialContent
-                && response.Content.Headers.ContentRange is not null
-                && response.Content.Headers.ContentRange.From == rec.DownloadedBytes;
-            if (isResume && !serverHonoredRange)
+            if (isResume && !HasStrongEtag(rec) && string.IsNullOrEmpty(rec.LastModified) && !string.IsNullOrEmpty(rec.ETag))
             {
-                // The server ignored the Range or answered a different one; appending would corrupt the file, so restart and say why.
-                string reason = response.StatusCode == HttpStatusCode.PartialContent ? "returned a different byte range than requested" : "did not support resuming";
-                rec.TransientNote = $"The server {reason}, so this download restarted from the beginning.";
-                Logs.Info($"[ModelBrowser] download '{rec.Name}' {reason}; restarting from scratch.");
+                // A client must not send a weak ETag in If-Range, and a bare Range could splice a changed file, so start over.
+                rec.TransientNote = "The server offers no way to check that this file is unchanged, so this download restarted from the beginning.";
+                Logs.Info($"[ModelBrowser] download '{rec.Name}' has only a weak ETag; restarting from scratch.");
                 isResume = false;
                 rec.DownloadedBytes = 0;
+                rec.TotalBytes = 0;
             }
-            rec.ETag = response.Headers.ETag?.Tag ?? rec.ETag;
-            rec.LastModified = response.Content.Headers.LastModified?.ToString("R") ?? rec.LastModified;
-            long? reportedTotal = serverHonoredRange ? response.Content.Headers.ContentRange?.Length : response.Content.Headers.ContentLength;
+            response = await SendDownloadAsync(requestUrl, headers, rec, isResume, linked.Token);
+            string restartReason = null;
+            if (isResume && response.StatusCode == HttpStatusCode.RequestedRangeNotSatisfiable)
+            {
+                if (rec.TotalBytes <= 0 && response.Content.Headers.ContentRange?.Length == rec.DownloadedBytes)
+                {
+                    // The server's file is exactly as long as the part file, so every byte is already here.
+                    CompleteDownload(rec);
+                    return;
+                }
+                restartReason = "no longer has the bytes this download stopped at";
+            }
+            else
+            {
+                await EnsureTransferResponseAsync(response, authHint);
+                if (isResume && !StartsAt(response, rec.DownloadedBytes))
+                {
+                    restartReason = response.StatusCode == HttpStatusCode.PartialContent ? "returned a different byte range than requested" : "did not support resuming";
+                }
+            }
+            if (restartReason is not null)
+            {
+                // Appending what the server sent would corrupt the file, so restart and say why.
+                rec.TransientNote = $"The server {restartReason}, so this download restarted from the beginning.";
+                Logs.Info($"[ModelBrowser] download '{rec.Name}' {restartReason}; restarting from scratch.");
+                isResume = false;
+                rec.DownloadedBytes = 0;
+                rec.TotalBytes = 0;
+                if (response.StatusCode != HttpStatusCode.OK)
+                {
+                    // Only a 200 carries the whole file; any other answer is asked for again without a Range.
+                    response.Dispose();
+                    response = await SendDownloadAsync(requestUrl, headers, rec, false, linked.Token);
+                    await EnsureTransferResponseAsync(response, authHint);
+                }
+            }
+            if (!StartsAt(response, rec.DownloadedBytes))
+            {
+                throw new SwarmReadableErrorException("Failed to download: the server sent a different part of the file than requested.");
+            }
+            // A fresh copy replaces both validators, since the old ones describe the old file.
+            string etag = response.Headers.ETag?.ToString();
+            string lastModified = response.Content.Headers.LastModified?.ToString("R");
+            rec.ETag = isResume ? (etag ?? rec.ETag) : etag;
+            rec.LastModified = isResume ? (lastModified ?? rec.LastModified) : lastModified;
+            long? reportedTotal = response.StatusCode == HttpStatusCode.PartialContent ? response.Content.Headers.ContentRange?.Length : response.Content.Headers.ContentLength;
             if (reportedTotal.HasValue && reportedTotal.Value > 0)
             {
                 rec.TotalBytes = reportedTotal.Value;
@@ -508,11 +655,7 @@ public static class DownloadManager
             {
                 throw new SwarmReadableErrorException($"Download incomplete: expected {rec.TotalBytes} bytes but got {rec.DownloadedBytes} bytes.");
             }
-            FinalizeDownload(rec);
-            rec.State = DownloadState.Completed;
-            rec.PerSecond = 0;
-            rec.UpdatedAtMs = NowMs();
-            SaveRecord(rec);
+            CompleteDownload(rec);
         }
         catch (OperationCanceledException)
         {
@@ -535,15 +678,47 @@ public static class DownloadManager
         }
         finally
         {
+            response?.Dispose();
             linked.Dispose();
         }
     }
 
-    /// <summary>Moves the finished part file into place and repeats core's post-download steps (metadata sidecar, handler
-    /// refresh, optional resave), so the model matches one fetched by core's downloader.</summary>
+    /// <summary>Moves the finished part file into place, runs <see cref="FinalizeDownload"/> and marks the download Completed.
+    /// The model is saved once it is moved, so a failure in FinalizeDownload is logged and noted instead of failing the download.</summary>
+    private static void CompleteDownload(DownloadRecord rec)
+    {
+        if (File.Exists(rec.OutPath))
+        {
+            throw new SwarmReadableErrorException($"Download finished, but a model already exists at '{rec.OutPath}'. Clear this download, or move that file away and Retry.");
+        }
+        try
+        {
+            File.Move(rec.PartPath, rec.OutPath, overwrite: false);
+        }
+        catch (IOException) when (File.Exists(rec.OutPath))
+        {
+            throw new SwarmReadableErrorException($"Download finished, but a model already exists at '{rec.OutPath}'. Clear this download, or move that file away and Retry.");
+        }
+        rec.TransientNote = null;
+        try
+        {
+            FinalizeDownload(rec);
+        }
+        catch (Exception ex)
+        {
+            rec.TransientNote = "The model was saved, but writing its metadata or refreshing the model list failed. See the server log.";
+            Logs.Warning($"[ModelBrowser] download '{rec.Name}' was saved, but finishing its setup failed: {ex.ReadableString()}");
+        }
+        rec.State = DownloadState.Completed;
+        rec.PerSecond = 0;
+        rec.UpdatedAtMs = NowMs();
+        SaveRecord(rec);
+    }
+
+    /// <summary>Repeats core's post-download steps (metadata sidecar, handler refresh, optional resave), so the model matches
+    /// one fetched by core's downloader.</summary>
     private static void FinalizeDownload(DownloadRecord rec)
     {
-        File.Move(rec.PartPath, rec.OutPath, overwrite: false);
         if (!string.IsNullOrWhiteSpace(rec.Metadata))
         {
             File.WriteAllText(Path.ChangeExtension(rec.OutPath, "swarm.json"), rec.Metadata);

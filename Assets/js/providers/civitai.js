@@ -40,6 +40,9 @@
         { value: 'Day', label: 'Past Day' }
     ];
 
+    /** Counts Download clicks, so only the latest one loads once its pre-flight check returns. */
+    let latestDownloadRequest = 0;
+
     window.ModelBrowser.Providers.civitai = {
         id: 'civitai',
         displayName: 'CivitAI',
@@ -195,7 +198,13 @@
         handleDownload: async function (item) {
             const utils = window.ModelBrowser && window.ModelBrowser.Utils;
             const bestUrl = item.downloadUrl || item.openUrl || '';
+            const request = ++latestDownloadRequest;
+            const loadsBefore = utils ? utils.urlLoads : 0;
             const check = await this.preflightCheck(item);
+            // A newer click, or a URL loaded into the downloader while the check ran, wins over this older click.
+            if (request !== latestDownloadRequest || (utils && utils.urlLoads !== loadsBefore)) {
+                return;
+            }
             if (check && check.success) {
                 const warnings = [];
                 if (check.inEarlyAccess && check.earlyAccessEndsAt) {
@@ -259,25 +268,49 @@
 
         getPopoverExtras: function (item, menuDiv, selection) {
             const utils = window.ModelBrowser && window.ModelBrowser.Utils;
-            const trainedWords = Array.isArray(item.trainedWords) ? item.trainedWords : [];
-            if (trainedWords.length > 0) {
+            const versions = Array.isArray(item.downloadOptions) ? item.downloadOptions : [];
+            // The menu is built once, so read the version picked on the card at click time.
+            const pickedVersion = () => {
+                const id = `${(selection && selection.modelVersionId) || item.modelVersionId}`;
+                return versions.find(v => v && `${v.modelVersionId}` === id) || null;
+            };
+            const pickedWords = () => {
+                const version = pickedVersion();
+                const words = version ? version.trainedWords : item.trainedWords;
+                return Array.isArray(words) ? words : [];
+            };
+            const pickedAir = () => {
+                const version = pickedVersion();
+                return version ? `${version.air || ''}` : `${item.air || ''}`;
+            };
+            const hasWords = (Array.isArray(item.trainedWords) && item.trainedWords.length > 0) || versions.some(v => v && Array.isArray(v.trainedWords) && v.trainedWords.length > 0);
+            if (hasWords) {
                 const triggerBtn = document.createElement('div');
                 triggerBtn.className = 'sui_popover_model_button';
-                triggerBtn.innerText = `${translate('Copy Trigger Words')} (${trainedWords.length})`;
+                triggerBtn.innerText = translate('Copy Trigger Words');
                 triggerBtn.onclick = () => {
+                    const words = pickedWords();
+                    if (words.length === 0) {
+                        triggerBtn.innerText = translate('No trigger words for this version');
+                        setTimeout(() => {
+                            triggerBtn.innerText = translate('Copy Trigger Words');
+                        }, 2000);
+                        return;
+                    }
                     if (typeof copyText === 'function') {
-                        copyText(trainedWords.join(', '));
+                        copyText(words.join(', '));
                     }
                 };
                 menuDiv.appendChild(triggerBtn);
             }
-            if (item.air) {
+            if (item.air || versions.some(v => v && v.air)) {
                 const airBtn = document.createElement('div');
                 airBtn.className = 'sui_popover_model_button';
                 airBtn.innerText = translate('Copy AIR URN');
                 airBtn.onclick = () => {
-                    if (typeof copyText === 'function') {
-                        copyText(`${item.air}`);
+                    const air = pickedAir();
+                    if (air && typeof copyText === 'function') {
+                        copyText(air);
                     }
                 };
                 menuDiv.appendChild(airBtn);

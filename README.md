@@ -108,7 +108,7 @@ An in-progress download can be **Cancel**ed, which keeps the partial file so it 
 
 ![A finished download](Assets/screenshots/download_complete.webp)
 
-Finished downloads turn green and can be **Dismiss**ed. They are hidden by default; tick **Show completed** to keep them in the list.
+Finished downloads turn green and can be **Dismiss**ed. They are hidden by default; tick **Show completed** to keep them in the list. A finished download whose metadata or model-list refresh failed stays visible with a note until you dismiss it.
 
 ## Providers
 
@@ -149,7 +149,7 @@ Finished downloads turn green and can be **Dismiss**ed. They are hidden by defau
 - Browsing without a search query uses page-based pagination; searching by name uses CivitAI's cursor-based pagination
 - NSFW results need the `model_browser_nsfw` permission and the NSFW checkbox (see [NSFW filtering](#nsfw-filtering)), and are fetched from `civitai.red` instead of `civitai.com`
 - An API key unlocks gated/early-access models and raises rate limits
-- File selection prefers `.safetensors`, `.sft` and `.gguf` files
+- A card's default file is the version's primary file when it is `.safetensors`, `.sft` or `.gguf`, else the version's first file of those types; bundled VAE and text encoder files are skipped, as core does
 
 ### Hugging Face
 
@@ -309,7 +309,7 @@ Hugging Face images are fetched lazily and aren't guaranteed for every repo; Civ
 
 ## Contributing
 
-Contributions welcome. Areas that would help most:
+Contributions welcome. Before changing the UI, read [DESIGN.md](DESIGN.md): it matches SwarmUI's colors and classes. Areas that would help most:
 - Additional provider integrations
 - Download history and version tracking (planned; `Assets/js/download_history.js` reserves the namespace)
 - Surfacing recent destination folders in the folder tree (the last 12 are still recorded to `localStorage`, but nothing displays them since the folder tree replaced core's dropdown)

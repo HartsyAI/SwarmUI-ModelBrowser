@@ -41,7 +41,7 @@
     /** Builds the status line for a card. Returned as HTML (not text) since the errored case needs a link. */
     function statusHtml(rec) {
         const known = rec.totalBytes > 0;
-        // Set only when the server refused a resume and the byte count restarted from zero.
+        // A note for this attempt only, eg that a refused resume restarted from zero or that setup failed after the save.
         const noteHtml = rec.note ? `<br>${escapeHtml(rec.note)}` : '';
         if (rec.state === 'downloading') {
             const speed = rec.perSecond > 0 ? ` - ${formatBytes(rec.perSecond)}/s` : '';
@@ -66,7 +66,7 @@
             return html;
         }
         if (rec.state === 'completed') {
-            return `${translate('Done!')} ${formatBytes(rec.totalBytes || rec.downloadedBytes)}`;
+            return `${translate('Done!')} ${formatBytes(rec.totalBytes || rec.downloadedBytes)}${noteHtml}`;
         }
         return '';
     }
@@ -152,6 +152,8 @@
         // State classes go on the outer `.model-browser-download-card`, which the state colors and Show completed select on.
         els.root.classList.remove('model-browser-state-downloading', 'model-browser-state-paused', 'model-browser-state-errored', 'model-browser-state-completed');
         els.root.classList.add(`model-browser-state-${rec.state}`);
+        // Keeps a finished card with a note on screen even while completed downloads are hidden.
+        els.root.classList.toggle('model-browser-has-note', !!rec.note);
         renderActions(els.actions, rec);
     }
 
@@ -218,25 +220,41 @@
         }
     }
 
+    function showFailure(message) {
+        if (typeof showError === 'function') {
+            showError(message);
+        }
+    }
+
+    /** Drops a download from the panel, eg once it is cleared, or when another tab already cleared it. */
+    function forget(id) {
+        records.delete(id);
+        removeCard(id);
+        reconcilePolling();
+    }
+
     async function resumeDownload(id) {
         const resp = await call('ModelBrowserResumeDownload', { id });
         if (resp && resp.download) {
             setRecord(resp.download);
         }
+        else if (resp && resp.error === 'Download not found.') {
+            forget(id);
+        }
         else if (resp && resp.error) {
             console.warn(`[ModelBrowser] resume failed: ${resp.error}`);
+            showFailure(`${translate('Could not resume the download:')} ${resp.error}`);
         }
     }
 
     async function clearDownload(id) {
         const resp = await call('ModelBrowserClearDownload', { id });
-        if (resp && resp.success) {
-            records.delete(id);
-            removeCard(id);
-            reconcilePolling();
+        if (resp && (resp.success || resp.error === 'Download not found.')) {
+            forget(id);
         }
         else if (resp && resp.error) {
             console.warn(`[ModelBrowser] clear failed: ${resp.error}`);
+            showFailure(`${translate('Could not clear the download:')} ${resp.error}`);
         }
     }
 

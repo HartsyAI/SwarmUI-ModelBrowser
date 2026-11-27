@@ -4,6 +4,7 @@ using SwarmUI.Core;
 using SwarmUI.Utils;
 using SwarmUI.WebAPI;
 using System.Collections.Specialized;
+using System.Globalization;
 using System.IO;
 using System.Net.Http;
 using System.Web;
@@ -302,12 +303,12 @@ public class CivitAIProvider : IModelBrowserProvider
             includeNsfw = false;
         }
         limit = Math.Clamp(limit, 1, 50);
-        string cacheKey = $"images:{modelVersionId}:{limit}:{includeNsfw}";
+        string apiKey = session.User.GetGenericData("civitai_api", "key");
+        string cacheKey = $"images:{ProviderCacheOwner.For(session, apiKey)}:{modelVersionId}:{limit}:{includeNsfw}";
         if (ImagesCache.TryGet(cacheKey, out JObject cached))
         {
             return cached;
         }
-        string apiKey = session.User.GetGenericData("civitai_api", "key");
         UrlBuilder builder = new($"https://{GetApiHost(includeNsfw)}/api/v1/images");
         builder.Add("modelVersionId", modelVersionId.ToString());
         builder.Add("limit", limit);
@@ -361,21 +362,22 @@ public class CivitAIProvider : IModelBrowserProvider
         {
             return new JObject() { ["success"] = false, ["error"] = "Model version ID is required." };
         }
-        string cacheKey = $"mini:{modelVersionId}";
+        string apiKey = session.User.GetGenericData("civitai_api", "key");
+        // The result carries the caller's hasApiKey and access, so each key gets its own entry.
+        string cacheKey = $"mini:{ProviderCacheOwner.For(session, apiKey)}:{modelVersionId}";
         if (VersionCache.TryGet(cacheKey, out JObject cached))
         {
             return cached;
         }
-        string apiKey = session.User.GetGenericData("civitai_api", "key");
         string url = $"https://{SfwHost}/api/v1/model-versions/mini/{modelVersionId}";
         JObject data = await FetchJsonAsync(url, $"CivitAI mini check {modelVersionId}", apiKey);
         if (data.ContainsKey("error"))
         {
             return data;
         }
-        string earlyAccessEndsAt = data.Value<string>("earlyAccessEndsAt") ?? "";
+        string earlyAccessEndsAt = ModelResultBuilder.ReadUtcTimestamp(data["earlyAccessEndsAt"]);
         bool inEarlyAccess = false;
-        if (!string.IsNullOrWhiteSpace(earlyAccessEndsAt) && DateTime.TryParse(earlyAccessEndsAt, out DateTime endsDt) && endsDt > DateTime.UtcNow)
+        if (!string.IsNullOrWhiteSpace(earlyAccessEndsAt) && DateTimeOffset.TryParse(earlyAccessEndsAt, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out DateTimeOffset endsAt) && endsAt > DateTimeOffset.UtcNow)
         {
             inEarlyAccess = true;
         }
@@ -431,12 +433,12 @@ public class CivitAIProvider : IModelBrowserProvider
         {
             return new JObject() { ["success"] = false, ["error"] = "Model version ID is required." };
         }
-        string cacheKey = $"versionfiles:{modelVersionId}";
+        string apiKey = session.User.GetGenericData("civitai_api", "key");
+        string cacheKey = $"versionfiles:{ProviderCacheOwner.For(session, apiKey)}:{modelVersionId}";
         if (VersionFilesCache.TryGet(cacheKey, out JObject cached))
         {
             return cached;
         }
-        string apiKey = session.User.GetGenericData("civitai_api", "key");
         string url = $"https://{SfwHost}/api/v1/model-versions/{modelVersionId}";
         JObject data = await FetchJsonAsync(url, $"CivitAI version files {modelVersionId}", apiKey);
         if (data.ContainsKey("error"))
@@ -444,6 +446,8 @@ public class CivitAIProvider : IModelBrowserProvider
             return data;
         }
         JArray rawFiles = data["files"] as JArray ?? [];
+        // The card defaults to this file, so the format picker marks the same one as primary.
+        JObject best = ModelResultBuilder.SelectBestFile(rawFiles);
         JArray files = [];
         foreach (JObject f in rawFiles.OfType<JObject>())
         {
@@ -466,7 +470,7 @@ public class CivitAIProvider : IModelBrowserProvider
                 ["format"] = meta?.Value<string>("format") ?? "",
                 ["precision"] = meta?.Value<string>("fp") ?? "",
                 ["sizeLabel"] = meta?.Value<string>("size") ?? "",
-                ["primary"] = f.Value<bool?>("primary") ?? false
+                ["primary"] = ReferenceEquals(f, best)
             });
         }
         JObject result = new()
